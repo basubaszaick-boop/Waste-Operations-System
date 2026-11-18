@@ -1,0 +1,105 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function signedIn() { return request.auth != null && exists(/databases/$(db)/documents/users/$(request.auth.uid)); }
+    function me() { return get(/databases/$(db)/documents/users/$(request.auth.uid)).data; }
+    function isAdmin() { return signedIn() && me().role == 'admin'; }
+    function isDriver() { return signedIn() && me().role == 'driver'; }
+    function isHeadOf(b) { return signedIn() && me().role == 'barangay_head' && me().barangay == b; }
+    function validResident(d) {
+      return d.name is string && d.name.size() >= 2 && d.name.size() <= 80
+        && d.barangay is string && d.purok is string && d.purok.size() > 0
+        && d.mobile is string && d.mobile.matches('^09[0-9]{9}$')
+        && d.consent == true && d.ready is bool;
+    }
+
+    // Profile fields a person may change on their own account. Role, barangay, team and
+    // active status can only be changed by an admin.
+    function selfFieldsOnly() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['name', 'phone', 'address', 'bio', 'position', 'vehicle', 'photo', 'prefs', 'email']);
+    }
+    function validSelfProfile(a) {
+      return a.get('name', 'xx') is string && a.get('name', 'xx').size() >= 2 && a.get('name', 'xx').size() <= 80
+        && a.get('phone', '') is string && (a.get('phone', '') == '' || a.get('phone', '').matches('^09[0-9]{9}$'))
+        && a.get('address', '') is string && a.get('address', '').size() <= 160
+        && a.get('bio', '') is string && a.get('bio', '').size() <= 300
+        && a.get('position', '') is string && a.get('position', '').size() <= 60
+        && a.get('vehicle', '') is string && a.get('vehicle', '').size() <= 30
+        && a.get('photo', '') is string && a.get('photo', '').size() <= 80000
+        && a.get('prefs', {}) is map
+        && a.get('email', request.auth.token.email) == request.auth.token.email;
+    }
+
+    match /users/{uid} {
+      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (request.auth.uid == uid && selfFieldsOnly() && validSelfProfile(request.resource.data));
+    }
+    // Resident concerns: ONLY the Barangay Head of that barangay (field "area"). Admins and drivers have no access.
+    function validConcern(d) {
+      return d.keys().hasOnly(['resident', 'area', 'subject', 'details', 'status', 'createdBy', 'createdAt'])
+        && d.resident is string && d.resident.size() > 0 && d.resident.size() <= 80
+        && d.area is string && d.area.size() > 0 && d.area.size() <= 80
+        && d.subject is string && d.subject.size() > 0 && d.subject.size() <= 120
+        && d.details is string && d.details.size() <= 500
+        && d.status in ['Pending', 'In Review', 'Resolved']
+        && d.createdBy is string && d.createdAt is string;
+    }
+    match /concerns/{id} {
+      allow read: if isHeadOf(resource.data.area);
+      allow create: if isHeadOf(request.resource.data.area) && validConcern(request.resource.data);
+      allow update: if isHeadOf(resource.data.area) && validConcern(request.resource.data)
+        && request.resource.data.area == resource.data.area;
+      allow delete: if false;
+    }
+    // Full resident records (names + phones): admin, or the head of that barangay only.
+    match /residents/{id} {
+      allow read: if isAdmin() || isHeadOf(resource.data.barangay);
+      allow create: if (isAdmin() || isHeadOf(request.resource.data.barangay)) && validResident(request.resource.data);
+      allow update: if (isAdmin() || isHeadOf(resource.data.barangay))
+        && request.resource.data.barangay == resource.data.barangay && validResident(request.resource.data);
+      allow delete: if isAdmin() || isHeadOf(resource.data.barangay);
+    }
+    // Driver-safe copy: no names, no phone numbers.
+    match /dispatch/{id} {
+      allow read: if isAdmin() || isDriver() || isHeadOf(resource.data.barangay);
+      allow create, update: if (isAdmin() || isHeadOf(request.resource.data.barangay))
+        && request.resource.data.keys().hasOnly(['barangay', 'purok', 'ready']);
+      allow delete: if isAdmin() || isHeadOf(resource.data.barangay);
+    }
+    match /advisories/{id} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && request.resource.data.status == 'queued'
+        && request.resource.data.message is string
+        && request.resource.data.message.size() >= 5 && request.resource.data.message.size() <= 160;
+      allow update, delete: if false;
+    }
+    // Collection schedules: everyone signed in can read; admin manages; drivers may update status.
+    function validSchedule(d) {
+      return d.keys().hasOnly(['area', 'date', 'time', 'wasteType', 'team', 'status']) // wasteType kept only so old records still validate
+        && d.area is string && d.area.size() > 0 && d.area.size() <= 80
+        && d.date is string && d.time is string
+        && d.team is string && d.team.size() <= 80
+        && d.status in ['Scheduled', 'In Progress', 'Completed', 'Cancelled'];
+    }
+    match /schedules/{id} {
+      allow read: if signedIn();
+      allow create: if isAdmin() && validSchedule(request.resource.data);
+      allow update: if (isAdmin() && validSchedule(request.resource.data))
+        || (isDriver() && validSchedule(request.resource.data)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']));
+      allow delete: if isAdmin();
+    }
+    // Activity log: anyone signed in can add a line about themselves; admin reads all, others read their own.
+    match /audit/{id} {
+      allow read: if isAdmin() || (signedIn() && resource.data.user == request.auth.token.email);
+      allow create: if signedIn() && request.resource.data.user == request.auth.token.email
+        && request.resource.data.keys().hasOnly(['user', 'name', 'role', 'action', 'detail', 'time'])
+        && request.resource.data.action is string && request.resource.data.action.size() <= 80
+        && request.resource.data.detail is string && request.resource.data.detail.size() <= 200;
+      allow update, delete: if false;
+    }
+  }
+}

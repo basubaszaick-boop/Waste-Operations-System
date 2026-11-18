@@ -1,0 +1,40 @@
+<section class="panel">
+  <div class="toolbar">
+    <div>
+      <h3>System Activity</h3>
+      <p>The latest {{ entries().length }} recorded actions. Newest first.</p>
+    </div>
+    <div class="toolbar-actions">
+      <input class="search" [ngModel]="query()" (ngModelChange)="query.set($event)" placeholder="Search activity..." />
+      <button class="secondary-button" (click)="load()" [disabled]="loading()">{{ loading() ? 'Loading...' : '↻ Refresh' }}</button>
+      <button class="secondary-button" (click)="exportCsv()" [disabled]="!shown().length">↓ Export CSV</button>
+    </div>
+  </div>
+
+  <div class="chip-row">
+    <button *ngFor="let r of roles" class="chip" [class.active]="role() === r.id" (click)="role.set(r.id)">{{ r.label }}</button>
+  </div>
+
+  <p class="form-msg bad" *ngIf="error()">{{ error() }}</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>TIME</th><th>PERSON</th><th>ROLE</th><th>ACTION</th><th>DETAIL</th></tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let e of shown()">
+          <td>{{ e.time | date:'MMM d, y' }}<small class="cell-sub">{{ e.time | date:'h:mm a' }}</small></td>
+          <td><strong>{{ e.name }}</strong><small class="cell-sub">{{ e.user }}</small></td>
+          <td><span class="role-pill small" [ngClass]="e.role">{{ roleLabel(e.role) }}</span></td>
+          <td>{{ e.action }}</td>
+          <td>{{ e.detail || '—' }}</td>
+        </tr>
+        <tr *ngIf="!shown().length">
+          <td colspan="5" class="empty">{{ loading() ? 'Loading activity...' : 'No activity found.' }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+<p class="info-note">Actions are recorded when people sign in, edit schedules, update collections or change their profile.</p>

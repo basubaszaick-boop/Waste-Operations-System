@@ -1,0 +1,355 @@
+<ng-container *ngIf="session.user() as u">
+
+<!-- ================= WELCOME BANNER (all roles) ================= -->
+<section class="hero">
+  <div>
+    <p class="hero-eyebrow">{{ greeting }}</p>
+    <h2>{{ session.firstName() || 'Welcome' }}</h2>
+    <p class="hero-text" *ngIf="u.role === 'admin'">
+      {{ todays.length }} collection{{ todays.length === 1 ? '' : 's' }} today · {{ overdueCount }} overdue · {{ activeAccounts }} active account{{ activeAccounts === 1 ? '' : 's' }}.
+    </p>
+    <p class="hero-text" *ngIf="u.role === 'driver'">
+      {{ u.team ? u.team : 'No team assigned yet' }}{{ u.vehicle ? ' · Vehicle ' + u.vehicle : '' }} · {{ myToday.length }} stop{{ myToday.length === 1 ? '' : 's' }} today.
+    </p>
+    <p class="hero-text" *ngIf="u.role === 'barangay_head'">
+      Barangay {{ u.barangay }}{{ u.position ? ' · ' + u.position : '' }} · {{ store.pendingConcerns }} open concern{{ store.pendingConcerns === 1 ? '' : 's' }}.
+    </p>
+  </div>
+  <div class="hero-actions">
+    <button class="hero-button" (click)="store.loadAll()">↻ Refresh</button>
+    <button class="hero-button solid" (click)="go('profile')">My Profile</button>
+  </div>
+</section>
+
+<!-- ================= ADMIN ================= -->
+<ng-container *ngIf="u.role === 'admin'">
+  <div class="stats-grid">
+    <article class="stat-card link" (click)="go('records')">
+      <div class="stat-top"><span>Today's Collections</span><div class="stat-icon green">▤</div></div>
+      <h2>{{ todays.length }}</h2>
+      <p class="stat-foot">{{ store.todayOf(visible).filter(x => x.status === 'Completed').length }} completed</p>
+    </article>
+    <article class="stat-card link" (click)="go('records')">
+      <div class="stat-top"><span>In Progress</span><div class="stat-icon blue">◷</div></div>
+      <h2>{{ store.inProgressCount }}</h2>
+      <p class="stat-foot">Active right now</p>
+    </article>
+    <article class="stat-card link" (click)="go('records')">
+      <div class="stat-top"><span>Overdue</span><div class="stat-icon orange">⚠</div></div>
+      <h2>{{ overdueCount }}</h2>
+      <p class="stat-foot">Past date, not finished</p>
+    </article>
+    <article class="stat-card link" (click)="go('personnel')">
+      <div class="stat-top"><span>Active Accounts</span><div class="stat-icon purple">♙</div></div>
+      <h2>{{ activeAccounts }}</h2>
+      <p class="stat-foot">of {{ store.users().length }} accounts</p>
+    </article>
+  </div>
+
+  <div class="dashboard-grid">
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <h3>Today's Collections</h3>
+          <p>Change a status right here.</p>
+        </div>
+        <button class="text-button" (click)="go('schedules')">All schedules →</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>AREA</th><th>TIME</th><th>TEAM</th><th>STATUS</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let s of todays">
+              <td><strong>{{ s.area }}</strong></td>
+              <td>{{ store.time12(s.time) }}</td>
+              <td>{{ s.team }}</td>
+              <td>
+                <select class="status-select" [ngModel]="s.status" (ngModelChange)="store.changeScheduleStatus(s, $event)">
+                  <option>Scheduled</option><option>In Progress</option><option>Completed</option><option>Cancelled</option>
+                </select>
+              </td>
+            </tr>
+            <tr *ngIf="todays.length === 0"><td colspan="4" class="empty">Nothing is scheduled for today.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel quick-panel">
+      <div class="panel-heading"><div><h3>Quick Actions</h3><p>Frequently used tools</p></div></div>
+      <button class="quick-action" (click)="addSchedule()">
+        <span class="quick-icon green">＋</span>
+        <span><strong>Add Collection Schedule</strong><small>Create a collection plan</small></span><b>›</b>
+      </button>
+      <button class="quick-action" (click)="go('personnel')">
+        <span class="quick-icon blue">♙</span>
+        <span><strong>Manage Accounts</strong><small>Roles, teams, access</small></span><b>›</b>
+      </button>
+      <button class="quick-action" (click)="go('records')">
+        <span class="quick-icon orange">✓</span>
+        <span><strong>Collection Records</strong><small>Track collection progress</small></span><b>›</b>
+      </button>
+      <button class="quick-action" (click)="go('reports')">
+        <span class="quick-icon purple">▥</span>
+        <span><strong>Reports</strong><small>Summaries and CSV exports</small></span><b>›</b>
+      </button>
+    </section>
+  </div>
+
+  <div class="bottom-grid">
+    <section class="panel">
+      <div class="panel-heading"><div><h3>Needs Attention</h3><p>Tap an item to deal with it</p></div></div>
+      <button class="attention-row" *ngFor="let a of attention" (click)="goLink(a.link)" [ngClass]="a.tone">
+        <span class="attention-icon">{{ a.icon }}</span>
+        <span><strong>{{ a.title }}</strong><small>{{ a.text }}</small></span>
+        <b>›</b>
+      </button>
+      <p class="all-clear" *ngIf="attention.length === 0">✓ Everything is on track.</p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-heading"><div><h3>Team Workload</h3><p>Tap a team to see its schedules</p></div></div>
+      <button class="team-row" *ngFor="let t of store.teamWorkload.slice(0, 5)" (click)="openSchedulesFor(t.team)">
+        <span class="team-name"><strong>{{ t.team }}</strong><small>{{ t.completed }}/{{ t.total }} done{{ t.active ? ' · ' + t.active + ' active' : '' }}</small></span>
+        <span class="mini-progress"><span [style.width.%]="t.total ? t.completed / t.total * 100 : 0"></span></span>
+      </button>
+      <p class="empty-block" *ngIf="!store.teamWorkload.length">No schedules yet.</p>
+    </section>
+  </div>
+
+  <div class="bottom-grid">
+    <section class="panel">
+      <div class="panel-heading">
+        <div><h3>Collection Status</h3><p>All schedules</p></div>
+      </div>
+      <div class="status-summary">
+        <div><span class="legend green-bg"></span> Completed <strong>{{ store.completedCount }}</strong></div>
+        <div><span class="legend orange-bg"></span> Scheduled <strong>{{ store.pendingCount }}</strong></div>
+        <div><span class="legend blue-bg"></span> In Progress <strong>{{ store.inProgressCount }}</strong></div>
+        <div class="progress-track"><span [style.width.%]="percentDone"></span></div>
+        <small>{{ percentDone }}% completed</small>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-heading">
+        <div><h3>Recent Activity</h3><p>Latest actions by all users</p></div>
+        <button class="text-button" (click)="go('activity')">Full log →</button>
+      </div>
+      <ul class="timeline" *ngIf="store.recentActivity().length">
+        <li *ngFor="let e of store.recentActivity().slice(0, 5)">
+          <span class="dot"></span>
+          <div>
+            <strong>{{ e.name }} <em class="soft">{{ e.action }}</em></strong>
+            <small>{{ e.detail ? e.detail + ' · ' : '' }}{{ e.time | date:'MMM d, h:mm a' }}</small>
+          </div>
+        </li>
+      </ul>
+      <p class="empty-block" *ngIf="!store.recentActivity().length">No activity recorded yet.</p>
+    </section>
+  </div>
+</ng-container>
+
+<!-- ================= DRIVER ================= -->
+<ng-container *ngIf="u.role === 'driver'">
+  <section class="panel callout" *ngIf="!u.team">
+    <div>
+      <h3>You are not on a team yet</h3>
+      <p>The administrator assigns drivers to teams. Until then you can browse every collection.</p>
+    </div>
+    <button class="primary-button" (click)="browseAll()">Browse all collections</button>
+  </section>
+
+  <section class="panel callout warn" *ngIf="myOverdue.length">
+    <div>
+      <h3>{{ myOverdue.length }} overdue collection{{ myOverdue.length > 1 ? 's' : '' }}</h3>
+      <p>{{ myOverdue[0].area }} ({{ myOverdue[0].date }}) was not marked completed.</p>
+    </div>
+    <button class="primary-button" (click)="go('records')">Update now</button>
+  </section>
+
+  <div class="stats-grid">
+    <article class="stat-card link" (click)="go('records')">
+      <div class="stat-top"><span>Today's Stops</span><div class="stat-icon green">▤</div></div>
+      <h2>{{ myToday.length }}</h2><p class="stat-foot">{{ myDoneToday }} done</p>
+    </article>
+    <article class="stat-card link" (click)="go('records')">
+      <div class="stat-top"><span>In Progress</span><div class="stat-icon blue">◷</div></div>
+      <h2>{{ myActive }}</h2><p class="stat-foot">On the road now</p>
+    </article>
+    <article class="stat-card link" (click)="go('records')">
+      <div class="stat-top"><span>Upcoming</span><div class="stat-icon orange">▦</div></div>
+      <h2>{{ myUpcoming.length }}</h2><p class="stat-foot">After today</p>
+    </article>
+    <article class="stat-card link" (click)="go('records')">
+      <div class="stat-top"><span>Completed</span><div class="stat-icon purple">✓</div></div>
+      <h2>{{ store.completedCount }}</h2><p class="stat-foot">Team total</p>
+    </article>
+  </div>
+
+  <div class="dashboard-grid">
+    <section class="panel">
+      <div class="panel-heading">
+        <div><h3>Today's Route</h3><p>Start a stop, then mark it completed.</p></div>
+        <button class="text-button" (click)="go('records')">All records →</button>
+      </div>
+
+      <div class="route-card" *ngFor="let s of myToday" [ngClass]="s.status.toLowerCase().replace(' ','-')">
+        <div class="route-time">{{ store.time12(s.time) }}</div>
+        <div class="route-info">
+          <strong>{{ s.area }}</strong>
+          <span class="status" [ngClass]="s.status.toLowerCase().replace(' ','-')">{{ s.status }}</span>
+        </div>
+        <div class="route-actions">
+          <button class="primary-button" *ngIf="s.status === 'Scheduled'" (click)="store.changeScheduleStatus(s, 'In Progress')">▶ Start</button>
+          <button class="primary-button" *ngIf="s.status === 'In Progress'" (click)="store.changeScheduleStatus(s, 'Completed')">✓ Complete</button>
+          <button class="secondary-button" *ngIf="s.status === 'Completed'" (click)="store.changeScheduleStatus(s, 'In Progress')">Undo</button>
+        </div>
+      </div>
+      <p class="empty-block" *ngIf="!myToday.length">
+        {{ u.team ? 'No stops for ' + u.team + ' today. Enjoy the break!' : 'Nothing to show until you are assigned to a team.' }}
+      </p>
+    </section>
+
+    <section class="panel quick-panel">
+      <div class="panel-heading"><div><h3>Quick Actions</h3><p>Shortcuts</p></div></div>
+      <button class="quick-action" (click)="go('records')">
+        <span class="quick-icon green">✓</span>
+        <span><strong>Collection Records</strong><small>Update any collection</small></span><b>›</b>
+      </button>
+      <button class="quick-action" (click)="go('schedules')">
+        <span class="quick-icon blue">▤</span>
+        <span><strong>Collection Schedules</strong><small>See what is planned</small></span><b>›</b>
+      </button>
+      <button class="quick-action" (click)="go('notifications')">
+        <span class="quick-icon orange">♧</span>
+        <span><strong>Notifications</strong><small>{{ store.notifications.length }} reminder{{ store.notifications.length === 1 ? '' : 's' }}</small></span><b>›</b>
+      </button>
+      <button class="quick-action" (click)="go('profile')">
+        <span class="quick-icon purple">☺</span>
+        <span><strong>My Profile</strong><small>{{ u.vehicle ? 'Vehicle ' + u.vehicle : 'Add your vehicle plate' }}</small></span><b>›</b>
+      </button>
+    </section>
+  </div>
+
+  <section class="panel">
+    <div class="panel-heading"><div><h3>Coming Up</h3><p>Your next collections</p></div></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>DATE</th><th>TIME</th><th>AREA</th><th>STATUS</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let s of myUpcoming.slice(0, 6)">
+            <td>{{ s.date }}<small class="cell-sub">{{ store.daysUntil(s.date) === 1 ? 'Tomorrow' : 'In ' + store.daysUntil(s.date) + ' days' }}</small></td>
+            <td>{{ store.time12(s.time) }}</td>
+            <td><strong>{{ s.area }}</strong></td>
+            <td><span class="status" [ngClass]="s.status.toLowerCase().replace(' ','-')">{{ s.status }}</span></td>
+          </tr>
+          <tr *ngIf="!myUpcoming.length"><td colspan="4" class="empty">No upcoming collections.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</ng-container>
+
+<!-- ================= BARANGAY HEAD ================= -->
+<ng-container *ngIf="u.role === 'barangay_head'">
+  <section class="panel next-card" *ngIf="next as n; else noNext" [ngClass]="n.status.toLowerCase().replace(' ','-')">
+    <div class="next-when">
+      <span>Next collection</span>
+      <strong>{{ nextWhen }}</strong>
+    </div>
+    <div class="next-info">
+      <h3>{{ n.area }}</h3>
+      <p>{{ n.date }} at {{ store.time12(n.time) }} · {{ n.team }}</p>
+    </div>
+    <span class="status" [ngClass]="n.status.toLowerCase().replace(' ','-')">{{ n.status }}</span>
+    <button class="secondary-button" (click)="go('schedules')">Full schedule</button>
+  </section>
+  <ng-template #noNext>
+    <section class="panel next-card empty-next">
+      <div class="next-info"><h3>No upcoming collection</h3><p>Nothing is scheduled for {{ u.barangay }} yet. The administrator plans collections.</p></div>
+      <button class="secondary-button" (click)="go('schedules')">View schedules</button>
+    </section>
+  </ng-template>
+
+  <div class="stats-grid">
+    <article class="stat-card link" (click)="go('schedules')">
+      <div class="stat-top"><span>Upcoming</span><div class="stat-icon orange">▦</div></div>
+      <h2>{{ headUpcoming.length }}</h2><p class="stat-foot">Planned collections</p>
+    </article>
+    <article class="stat-card link" (click)="go('schedules')">
+      <div class="stat-top"><span>Completed</span><div class="stat-icon green">✓</div></div>
+      <h2>{{ store.completedCount }}</h2><p class="stat-foot">{{ percentDone }}% of all</p>
+    </article>
+    <article class="stat-card link" (click)="go('concerns')">
+      <div class="stat-top"><span>Open Concerns</span><div class="stat-icon purple">☏</div></div>
+      <h2>{{ store.pendingConcerns }}</h2><p class="stat-foot">Not yet resolved</p>
+    </article>
+    <article class="stat-card link" (click)="go('schedules')">
+      <div class="stat-top"><span>All Schedules</span><div class="stat-icon blue">▤</div></div>
+      <h2>{{ visible.length }}</h2><p class="stat-foot">In {{ u.barangay }}</p>
+    </article>
+  </div>
+
+  <div class="dashboard-grid">
+    <section class="panel">
+      <div class="panel-heading">
+        <div><h3>Open Concerns</h3><p>Update them as you follow up</p></div>
+        <button class="primary-button" (click)="reportConcern()">＋ Report Concern</button>
+      </div>
+      <div class="concern-item" *ngFor="let c of headConcerns">
+        <div>
+          <strong>{{ c.subject }}</strong>
+          <small>{{ c.resident }} · {{ c.createdAt | date:'MMM d' }}</small>
+        </div>
+        <span class="status" [ngClass]="c.status === 'In Review' ? 'in-progress' : 'scheduled'">{{ c.status }}</span>
+        <button class="edit-button" *ngIf="c.status === 'Pending'" (click)="store.changeConcernStatus(c, 'In Review')">Review</button>
+        <button class="primary-button small" (click)="store.changeConcernStatus(c, 'Resolved')">Resolve</button>
+      </div>
+      <p class="all-clear" *ngIf="!headConcerns.length">✓ No open concerns in {{ u.barangay }}.</p>
+    </section>
+
+    <section class="panel quick-panel">
+      <div class="panel-heading"><div><h3>Quick Actions</h3><p>Shortcuts</p></div></div>
+      <button class="quick-action" (click)="reportConcern()">
+        <span class="quick-icon orange">☏</span>
+        <span><strong>Report a Concern</strong><small>Record a resident's report</small></span><b>›</b>
+      </button>
+      <button class="quick-action" (click)="go('schedules')">
+        <span class="quick-icon green">▤</span>
+        <span><strong>Collection Schedule</strong><small>See planned collections</small></span><b>›</b>
+      </button>
+      <button class="quick-action" (click)="go('notifications')">
+        <span class="quick-icon blue">♧</span>
+        <span><strong>Notifications</strong><small>{{ store.notifications.length }} reminder{{ store.notifications.length === 1 ? '' : 's' }}</small></span><b>›</b>
+      </button>
+      <button class="quick-action" (click)="go('profile')">
+        <span class="quick-icon purple">☺</span>
+        <span><strong>My Profile</strong><small>Contact details and security</small></span><b>›</b>
+      </button>
+    </section>
+  </div>
+
+  <section class="panel">
+    <div class="panel-heading">
+      <div><h3>Upcoming Collections in {{ u.barangay }}</h3><p>Share these dates with residents</p></div>
+      <button class="text-button" (click)="go('schedules')">View all →</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>DATE</th><th>TIME</th><th>TEAM</th><th>STATUS</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let s of headUpcoming">
+            <td><strong>{{ s.date }}</strong><small class="cell-sub">{{ store.daysUntil(s.date) === 1 ? 'Tomorrow' : 'In ' + store.daysUntil(s.date) + ' days' }}</small></td>
+            <td>{{ store.time12(s.time) }}</td>
+            <td>{{ s.team }}</td>
+            <td><span class="status" [ngClass]="s.status.toLowerCase().replace(' ','-')">{{ s.status }}</span></td>
+          </tr>
+          <tr *ngIf="!headUpcoming.length"><td colspan="4" class="empty">No upcoming collections.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</ng-container>
+
+</ng-container>

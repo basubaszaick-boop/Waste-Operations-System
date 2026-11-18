@@ -1,0 +1,64 @@
+<div class="stats-grid">
+  <article class="stat-card">
+    <div class="stat-top"><span>Total Records</span><div class="stat-icon green">▤</div></div>
+    <h2>{{ store.visibleSchedules.length }}</h2>
+    <p class="stat-foot">Collection schedules</p>
+  </article>
+  <article class="stat-card">
+    <div class="stat-top"><span>Completed</span><div class="stat-icon blue">✓</div></div>
+    <h2>{{ store.completedCount }}</h2>
+    <p class="stat-foot">Completed records</p>
+  </article>
+  <article class="stat-card">
+    <div class="stat-top"><span>In Progress</span><div class="stat-icon orange">◷</div></div>
+    <h2>{{ store.inProgressCount }}</h2>
+    <p class="stat-foot">Active collections</p>
+  </article>
+  <article class="stat-card">
+    <div class="stat-top"><span>Scheduled</span><div class="stat-icon purple">▦</div></div>
+    <h2>{{ store.pendingCount }}</h2>
+    <p class="stat-foot">Waiting to start</p>
+  </article>
+</div>
+
+<section class="panel">
+  <div class="panel-heading">
+    <div>
+      <h3>Collections by Area</h3>
+      <p>How each area is doing.</p>
+    </div>
+    <button class="secondary-button" (click)="exportAreas()" [disabled]="!byArea.length">↓ Export CSV</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>AREA</th><th>TOTAL</th><th>COMPLETED</th><th>IN PROGRESS</th><th>SCHEDULED</th><th>CANCELLED</th><th>COMPLETION</th></tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let r of byArea">
+          <td><strong>{{ r.area }}</strong></td>
+          <td>{{ r.total }}</td>
+          <td>{{ r.completed }}</td>
+          <td>{{ r.inProgress }}</td>
+          <td>{{ r.scheduled }}</td>
+          <td>{{ r.cancelled }}</td>
+          <td>
+            <div class="mini-progress"><span [style.width.%]="r.rate"></span></div>
+            <small class="cell-sub">{{ r.rate }}%</small>
+          </td>
+        </tr>
+        <tr *ngIf="!byArea.length"><td colspan="7" class="empty">No schedules yet.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel report-panel">
+  <div>
+    <h3>Collection Schedule Report</h3>
+    <p>Export every schedule to a CSV file for Excel.</p>
+  </div>
+  <button class="primary-button" (click)="store.exportSchedules()">↓ Download Schedules CSV</button>
+</section>
+
+<p class="info-note">Reports use the live collection schedules saved in Firestore.</p>

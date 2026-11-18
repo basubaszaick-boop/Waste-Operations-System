@@ -1,0 +1,156 @@
+<section class="panel">
+  <div class="toolbar">
+    <div>
+      <h3>Staff Accounts</h3>
+      <p>Everyone who can sign in to the system. Open an account to change its role, barangay or team.</p>
+    </div>
+    <div class="toolbar-actions">
+      <input class="search" [ngModel]="query()" (ngModelChange)="query.set($event)" placeholder="Search name, email, team..." />
+      <button class="secondary-button" (click)="store.loadUsers()">↻ Refresh</button>
+      <button class="primary-button" (click)="showAdd = !showAdd">{{ showAdd ? '× Close' : '＋ Add Account' }}</button>
+    </div>
+  </div>
+
+  <div class="chip-row">
+    <button *ngFor="let f of filters" class="chip" [class.active]="roleFilter() === f.id" (click)="roleFilter.set(f.id)">
+      {{ f.label }} <b>{{ countOf(f.id) }}</b>
+    </button>
+  </div>
+
+  <p class="form-msg" *ngIf="message() as m" [class.ok]="m.ok" [class.bad]="!m.ok">{{ m.text }}</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>PERSON</th>
+          <th>ROLE</th>
+          <th>BARANGAY / TEAM</th>
+          <th>MOBILE</th>
+          <th>STATUS</th>
+          <th>ACTIONS</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let u of shown()" [class.muted-row]="!u.active">
+          <td>
+            <div class="person-cell">
+              <span class="avatar" [class.has-photo]="u.photo" [style.background-image]="u.photo ? 'url(' + u.photo + ')' : null">{{ u.photo ? '' : initialsOf(u) }}</span>
+              <span>
+                <strong>{{ u.name || '(no name)' }}</strong> <em class="you" *ngIf="isMe(u)">you</em>
+                <small class="cell-sub">{{ u.email || 'email not recorded yet' }}</small>
+              </span>
+            </div>
+          </td>
+          <td><span class="role-pill small" [ngClass]="u.role">{{ roleLabel(u.role) }}</span></td>
+          <td>
+            <ng-container *ngIf="u.role === 'barangay_head'">{{ u.barangay }}</ng-container>
+            <ng-container *ngIf="u.role === 'driver'">{{ u.team || 'No team yet' }}</ng-container>
+            <ng-container *ngIf="u.role === 'admin'">—</ng-container>
+          </td>
+          <td>{{ u.phone || '—' }}</td>
+          <td><span class="status" [ngClass]="u.active ? 'completed' : 'cancelled'">{{ u.active ? 'Active' : 'Deactivated' }}</span></td>
+          <td class="actions">
+            <button class="edit-button" (click)="openEdit(u)">Manage</button>
+            <button class="delete-button" *ngIf="!isMe(u)" (click)="toggleActive(u)">{{ u.active ? 'Deactivate' : 'Reactivate' }}</button>
+          </td>
+        </tr>
+        <tr *ngIf="!shown().length">
+          <td colspan="6" class="empty">No accounts found.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel" *ngIf="showAdd">
+  <div class="toolbar">
+    <div>
+      <h3>Create Staff Account</h3>
+      <p>Only the administrator can create accounts. Staff sign in with this email and temporary password, then change it under My Profile.</p>
+    </div>
+  </div>
+  <form (ngSubmit)="createStaffAccount()" class="schedule-form">
+    <label>Full name
+      <input name="sfName" [(ngModel)]="staffForm.name" required />
+    </label>
+    <label>Email
+      <input name="sfEmail" type="email" [(ngModel)]="staffForm.email" required autocomplete="off" />
+    </label>
+    <label>Temporary password (min. 6 characters)
+      <input name="sfPass" type="password" [(ngModel)]="staffForm.password" required autocomplete="new-password" />
+    </label>
+    <label>Role
+      <select name="sfRole" [(ngModel)]="staffForm.role">
+        <option value="driver">Driver</option>
+        <option value="barangay_head">Barangay Head</option>
+        <option value="admin">Admin</option>
+      </select>
+    </label>
+    <label *ngIf="staffForm.role === 'barangay_head'">Barangay
+      <input name="sfBrgy" [(ngModel)]="staffForm.barangay" placeholder="e.g. Poblacion" required />
+    </label>
+    <label *ngIf="staffForm.role === 'driver'">Team (optional)
+      <input name="sfTeam" [(ngModel)]="staffForm.team" list="teamNames" placeholder="e.g. Team Alpha" />
+    </label>
+    <p class="info-note" *ngIf="staffMessage()" [style.color]="staffError() ? '#b42318' : '#067647'">{{ staffMessage() }}</p>
+    <button type="submit" class="login-submit" [disabled]="staffBusy()">
+      {{ staffBusy() ? 'Creating...' : 'Create Account' }}
+    </button>
+  </form>
+</section>
+
+<datalist id="teamNames">
+  <option *ngFor="let t of teamNames" [value]="t"></option>
+</datalist>
+
+<!-- MANAGE ACCOUNT -->
+<div class="modal-backdrop" *ngIf="editing as u">
+  <section class="form-modal">
+    <div class="modal-heading">
+      <div>
+        <h2>Manage Account</h2>
+        <p>{{ u.email || 'Email not recorded yet' }}</p>
+      </div>
+      <button class="close-button" (click)="editing = null">×</button>
+    </div>
+
+    <dl class="profile-facts compact">
+      <div *ngIf="u.phone"><dt>Mobile</dt><dd>{{ u.phone }}</dd></div>
+      <div *ngIf="u.position"><dt>Position</dt><dd>{{ u.position }}</dd></div>
+      <div *ngIf="u.vehicle"><dt>Vehicle</dt><dd>{{ u.vehicle }}</dd></div>
+      <div *ngIf="u.address"><dt>Address</dt><dd>{{ u.address }}</dd></div>
+      <div *ngIf="u.createdAt"><dt>Member since</dt><dd>{{ u.createdAt | date:'mediumDate' }}</dd></div>
+    </dl>
+
+    <form (ngSubmit)="saveEdit()">
+      <label>Full name *
+        <input name="emName" [(ngModel)]="editForm.name" required />
+      </label>
+      <label>Role
+        <select name="emRole" [(ngModel)]="editForm.role" [disabled]="isMe(u)">
+          <option value="driver">Driver</option>
+          <option value="barangay_head">Barangay Head</option>
+          <option value="admin">Admin</option>
+        </select>
+      </label>
+      <label *ngIf="editForm.role === 'barangay_head'">Barangay *
+        <input name="emBrgy" [(ngModel)]="editForm.barangay" placeholder="e.g. Poblacion" required />
+      </label>
+      <label *ngIf="editForm.role === 'driver'">Assigned team
+        <input name="emTeam" [(ngModel)]="editForm.team" list="teamNames" placeholder="e.g. Team Alpha" />
+        <small class="counter left">The driver sees the collections of this team.</small>
+      </label>
+      <div class="setting-row tight" *ngIf="!isMe(u)">
+        <div><strong>Account active</strong><p>Deactivated people cannot sign in.</p></div>
+        <label class="switch"><input type="checkbox" name="emActive" [(ngModel)]="editForm.active" /><span></span></label>
+      </div>
+      <p class="hint" *ngIf="isMe(u)">This is your own account, so its role and status are locked.</p>
+      <p class="form-msg bad" *ngIf="editError()">{{ editError() }}</p>
+      <div class="modal-actions">
+        <button type="button" class="secondary-button" (click)="editing = null">Cancel</button>
+        <button type="submit" class="primary-button" [disabled]="editBusy()">{{ editBusy() ? 'Saving...' : 'Save changes' }}</button>
+      </div>
+    </form>
+  </section>
+</div>

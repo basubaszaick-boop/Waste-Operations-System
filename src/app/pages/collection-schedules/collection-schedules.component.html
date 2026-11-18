@@ -1,0 +1,96 @@
+<section class="panel">
+  <div class="toolbar">
+    <div>
+      <h3>All Collection Schedules</h3>
+      <p>Manage schedules and assigned teams.</p>
+    </div>
+    <div class="toolbar-actions">
+      <input class="search" [(ngModel)]="store.searchText" placeholder="Search schedules..." />
+      <button class="primary-button" *ngIf="store.canManageSchedules" (click)="store.openAddSchedule()">＋ Add Schedule</button>
+      <button class="secondary-button" (click)="store.exportSchedules()">↓ Export CSV</button>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>AREA</th>
+          <th>DATE</th>
+          <th>TIME</th>
+          <th>TEAM</th>
+          <th>STATUS</th>
+          <th>ACTIONS</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let s of store.filteredSchedules">
+          <td><strong>{{ s.area }}</strong></td>
+          <td>{{ s.date }}</td>
+          <td>{{ s.time }}</td>
+          <td>{{ s.team }}</td>
+          <td>
+            <span class="status" [ngClass]="s.status.toLowerCase().replace(' ','-')">
+              {{ s.status }}
+            </span>
+          </td>
+          <td class="actions">
+            <ng-container *ngIf="store.canManageSchedules; else viewOnly">
+              <button class="edit-button" (click)="store.editSchedule(s)">Edit</button>
+              <button class="delete-button" (click)="store.deleteSchedule(s)">Delete</button>
+            </ng-container>
+            <ng-template #viewOnly><span class="empty">View only</span></ng-template>
+          </td>
+        </tr>
+        <tr *ngIf="store.filteredSchedules.length === 0">
+          <td colspan="6" class="empty">No matching schedules found.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="modal-backdrop" *ngIf="store.showScheduleForm">
+  <section class="form-modal">
+    <div class="modal-heading">
+      <div>
+        <h2>{{ store.editingId !== null ? 'Edit Schedule' : 'Add Collection Schedule' }}</h2>
+        <p>Enter the collection details.</p>
+      </div>
+      <button class="close-button" (click)="store.showScheduleForm = false">×</button>
+    </div>
+
+    <form (ngSubmit)="store.saveSchedule()">
+      <label>Collection Area *
+        <input name="area" [(ngModel)]="store.scheduleForm.area" placeholder="e.g. Poblacion" required />
+      </label>
+
+      <div class="form-row">
+        <label>Collection Date *
+          <input type="date" name="date" [(ngModel)]="store.scheduleForm.date" required />
+        </label>
+        <label>Collection Time *
+          <input type="time" name="time" [(ngModel)]="store.scheduleForm.time" required />
+        </label>
+      </div>
+
+      <label>Assigned Team *
+        <input name="team" [(ngModel)]="store.scheduleForm.team" placeholder="e.g. Team Alpha" required />
+      </label>
+
+      <label>Status
+        <select name="status" [(ngModel)]="store.scheduleForm.status">
+          <option>Scheduled</option>
+          <option>In Progress</option>
+          <option>Completed</option>
+          <option>Cancelled</option>
+        </select>
+      </label>
+
+      <div class="modal-actions">
+        <button type="button" class="secondary-button" (click)="store.showScheduleForm = false">Cancel</button>
+        <button type="submit" class="primary-button">Save Schedule</button>
+      </div>
+    </form>
+  </section>
+</div>

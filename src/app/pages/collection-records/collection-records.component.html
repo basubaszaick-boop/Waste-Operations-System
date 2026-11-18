@@ -1,0 +1,56 @@
+<section class="panel">
+  <div class="toolbar">
+    <div>
+      <h3>Collection Operations</h3>
+      <p>Update the progress of each collection.</p>
+    </div>
+    <input class="search" [(ngModel)]="store.searchText" placeholder="Search records..." />
+  </div>
+
+  <div class="chip-row" *ngIf="store.isDriver">
+    <button class="chip" [class.active]="store.teamOnly()" (click)="store.teamOnly.set(true)">
+      My team{{ session.user()?.team ? ' (' + session.user()?.team + ')' : '' }}
+    </button>
+    <button class="chip" [class.active]="!store.teamOnly()" (click)="store.teamOnly.set(false)">All teams</button>
+  </div>
+  <p class="hint" *ngIf="store.isDriver && store.teamOnly() && !session.user()?.team">
+    You have not been assigned to a team yet. Ask the administrator, or switch to "All teams".
+  </p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>AREA</th>
+          <th>DATE & TIME</th>
+          <th>TEAM</th>
+          <th>STATUS</th>
+          <th>UPDATE</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let s of store.filteredRecords">
+          <td><strong>{{ s.area }}</strong></td>
+          <td>{{ s.date }}<small class="cell-sub">{{ s.time }}</small></td>
+          <td>{{ s.team }}</td>
+          <td>
+            <span class="status" [ngClass]="s.status.toLowerCase().replace(' ','-')">
+              {{ s.status }}
+            </span>
+          </td>
+          <td>
+            <select class="status-select" [ngModel]="s.status" (ngModelChange)="store.changeScheduleStatus(s, $event)">
+              <option>Scheduled</option>
+              <option>In Progress</option>
+              <option>Completed</option>
+              <option>Cancelled</option>
+            </select>
+          </td>
+        </tr>
+        <tr *ngIf="store.filteredRecords.length === 0">
+          <td colspan="5" class="empty">No records found.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>

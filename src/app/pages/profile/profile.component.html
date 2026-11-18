@@ -1,0 +1,203 @@
+<div class="profile-layout" *ngIf="user() as u">
+  <!-- ===== left: identity card ===== -->
+  <aside class="panel profile-card">
+    <div class="profile-cover"></div>
+
+    <div class="profile-photo" [class.has-photo]="session.photoStyle()" [style.background-image]="session.photoStyle()">
+      {{ session.photoStyle() ? '' : session.initials() }}
+    </div>
+
+    <h2>{{ u.name || u.email }}</h2>
+    <span class="role-pill" [ngClass]="u.role">{{ roleName() }}</span>
+    <p class="profile-sub" *ngIf="u.position">{{ u.position }}</p>
+
+    <div class="photo-actions">
+      <label class="secondary-button file-button" [class.disabled]="photoBusy()">
+        {{ photoBusy() ? 'Saving...' : '📷 Change photo' }}
+        <input type="file" accept="image/*" (change)="onPhoto($event)" [disabled]="photoBusy()" hidden />
+      </label>
+      <button class="text-button danger-text" *ngIf="u.photo" (click)="removePhoto()" [disabled]="photoBusy()">Remove</button>
+    </div>
+    <p class="form-msg" *ngIf="photoMsg() as m" [class.ok]="m.ok" [class.bad]="!m.ok">{{ m.text }}</p>
+
+    <div class="profile-stats">
+      <button *ngFor="let h of highlights()" (click)="go(h.link)">
+        <strong>{{ h.value }}</strong>
+        <span>{{ h.label }}</span>
+      </button>
+    </div>
+
+    <dl class="profile-facts">
+      <div><dt>Email</dt><dd>{{ u.email }}</dd></div>
+      <div *ngIf="u.role === 'barangay_head'"><dt>Barangay</dt><dd>{{ u.barangay }}</dd></div>
+      <div *ngIf="u.role === 'driver'"><dt>Team</dt><dd>{{ u.team || 'Not assigned yet' }}</dd></div>
+      <div *ngIf="u.role === 'driver' && u.vehicle"><dt>Vehicle</dt><dd>{{ u.vehicle }}</dd></div>
+      <div *ngIf="u.phone"><dt>Mobile</dt><dd>{{ u.phone }}</dd></div>
+      <div><dt>Status</dt><dd><span class="status completed">Active</span></dd></div>
+      <div *ngIf="u.createdAt"><dt>Member since</dt><dd>{{ u.createdAt | date:'mediumDate' }}</dd></div>
+      <div *ngIf="u.lastSignIn"><dt>Last sign-in</dt><dd>{{ u.lastSignIn | date:'medium' }}</dd></div>
+    </dl>
+  </aside>
+
+  <!-- ===== right: tabs ===== -->
+  <section class="profile-main">
+    <div class="tab-bar" role="tablist">
+      <button *ngFor="let t of tabs" role="tab" class="tab" [class.active]="tab() === t.id" (click)="setTab(t.id)">
+        <span>{{ t.icon }}</span> {{ t.label }}
+      </button>
+    </div>
+
+    <!-- PERSONAL INFO -->
+    <section class="panel" *ngIf="tab() === 'info'">
+      <div class="panel-heading">
+        <div>
+          <h3>Personal Information</h3>
+          <p>Keep your contact details up to date so the office can reach you.</p>
+        </div>
+      </div>
+
+      <form class="profile-form" (ngSubmit)="saveInfo()">
+        <div class="form-row">
+          <label>Full name *
+            <input name="pfName" [(ngModel)]="form.name" maxlength="80" required />
+          </label>
+          <label>Mobile number
+            <input name="pfPhone" [(ngModel)]="form.phone" inputmode="numeric" maxlength="11" placeholder="09171234567" />
+          </label>
+        </div>
+
+        <div class="form-row">
+          <label>Email (sign-in)
+            <input [value]="u.email" disabled />
+          </label>
+          <label>
+            {{ u.role === 'admin' ? 'Office / position' : u.role === 'barangay_head' ? 'Position in the barangay' : 'Role title' }}
+            <input name="pfPos" [(ngModel)]="form.position" maxlength="60"
+              [placeholder]="u.role === 'admin' ? 'e.g. Municipal Environment Officer' : u.role === 'barangay_head' ? 'e.g. Barangay Captain' : 'e.g. Collection Driver'" />
+          </label>
+        </div>
+
+        <div class="form-row" *ngIf="u.role === 'driver'">
+          <label>Vehicle plate number
+            <input name="pfVeh" [(ngModel)]="form.vehicle" maxlength="30" placeholder="e.g. ABC 1234" />
+          </label>
+          <label>Assigned team
+            <input [value]="u.team || 'Not assigned yet'" disabled />
+          </label>
+        </div>
+        <div class="form-row" *ngIf="u.role === 'barangay_head'">
+          <label>Assigned barangay
+            <input [value]="u.barangay" disabled />
+          </label>
+        </div>
+
+        <label>Address
+          <input name="pfAddr" [(ngModel)]="form.address" maxlength="160" placeholder="Street / Purok, Barangay" />
+        </label>
+
+        <label>About me
+          <textarea name="pfBio" [(ngModel)]="form.bio" maxlength="300" rows="3" placeholder="A short note about your work"></textarea>
+          <small class="counter">{{ form.bio.length }}/300</small>
+        </label>
+
+        <p class="hint" *ngIf="u.role !== 'admin'">Your role, barangay and team are set by the administrator and cannot be changed here.</p>
+        <p class="form-msg" *ngIf="infoMsg() as m" [class.ok]="m.ok" [class.bad]="!m.ok">{{ m.text }}</p>
+
+        <div class="modal-actions">
+          <button type="button" class="secondary-button" (click)="resetForm()" [disabled]="!dirty || infoBusy()">Discard changes</button>
+          <button type="submit" class="primary-button" [disabled]="!dirty || infoBusy()">{{ infoBusy() ? 'Saving...' : 'Save changes' }}</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- SECURITY -->
+    <section class="panel" *ngIf="tab() === 'security'">
+      <div class="panel-heading">
+        <div>
+          <h3>Change Password</h3>
+          <p>You will be asked for your current password first.</p>
+        </div>
+        <button type="button" class="text-button" (click)="showPw.set(!showPw())">{{ showPw() ? 'Hide' : 'Show' }} passwords</button>
+      </div>
+
+      <form class="profile-form" (ngSubmit)="changePassword()">
+        <label>Current password
+          <input name="pwCur" [type]="showPw() ? 'text' : 'password'" [(ngModel)]="pw.current" autocomplete="current-password" required />
+        </label>
+        <label>New password
+          <input name="pwNew" [type]="showPw() ? 'text' : 'password'" [ngModel]="pw.next" (ngModelChange)="onNewPassword($event)" autocomplete="new-password" required />
+        </label>
+        <div class="strength" *ngIf="pw.next">
+          <div class="strength-bar"><span [style.width.%]="(strength() + 1) * 20" [attr.data-level]="strength()"></span></div>
+          <small>{{ strengthLabel() }} - use 8+ characters with upper and lower case, a number and a symbol.</small>
+        </div>
+        <label>Confirm new password
+          <input name="pwCon" [type]="showPw() ? 'text' : 'password'" [(ngModel)]="pw.confirm" autocomplete="new-password" required />
+        </label>
+
+        <p class="form-msg" *ngIf="pwMsg() as m" [class.ok]="m.ok" [class.bad]="!m.ok">{{ m.text }}</p>
+        <div class="modal-actions">
+          <button type="submit" class="primary-button" [disabled]="pwBusy()">{{ pwBusy() ? 'Updating...' : 'Update password' }}</button>
+        </div>
+      </form>
+
+      <div class="setting-row">
+        <div>
+          <strong>Sign out</strong>
+          <p>End your session on this device.</p>
+        </div>
+        <button class="delete-button" (click)="signOut()">Sign out</button>
+      </div>
+    </section>
+
+    <!-- PREFERENCES -->
+    <section class="panel" *ngIf="tab() === 'prefs'">
+      <div class="panel-heading">
+        <div>
+          <h3>Notification Preferences</h3>
+          <p>Choose what appears on your Notifications page and the bell icon. Changes save instantly.</p>
+        </div>
+      </div>
+
+      <div class="setting-row" *ngFor="let p of prefsFor()">
+        <div>
+          <strong>{{ p.title }}</strong>
+          <p>{{ p.text }}</p>
+        </div>
+        <label class="switch">
+          <input type="checkbox" [checked]="u.prefs[p.key]" (change)="togglePref(p.key, $any($event.target).checked)" />
+          <span></span>
+        </label>
+      </div>
+
+      <p class="form-msg" *ngIf="prefMsg() as m" [class.ok]="m.ok" [class.bad]="!m.ok">{{ m.text }}</p>
+      <div class="modal-actions">
+        <button class="secondary-button" (click)="go('/notifications')">View my notifications ({{ store.notifications.length }})</button>
+      </div>
+    </section>
+
+    <!-- ACTIVITY -->
+    <section class="panel" *ngIf="tab() === 'activity'">
+      <div class="panel-heading">
+        <div>
+          <h3>My Recent Activity</h3>
+          <p>The last things you did in the system.</p>
+        </div>
+        <button class="secondary-button" (click)="loadActivity()" [disabled]="entriesLoading()">{{ entriesLoading() ? 'Loading...' : '↻ Refresh' }}</button>
+      </div>
+
+      <p class="form-msg bad" *ngIf="entriesError()">{{ entriesError() }}</p>
+      <ul class="timeline" *ngIf="entries().length">
+        <li *ngFor="let e of entries()">
+          <span class="dot"></span>
+          <div>
+            <strong>{{ e.action }}</strong>
+            <p *ngIf="e.detail">{{ e.detail }}</p>
+            <small>{{ e.time | date:'MMM d, y · h:mm a' }}</small>
+          </div>
+        </li>
+      </ul>
+      <p class="empty-block" *ngIf="!entries().length && !entriesLoading() && !entriesError()">No activity yet. Things you do in the system will show up here.</p>
+    </section>
+  </section>
+</div>

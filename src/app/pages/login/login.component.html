@@ -1,0 +1,41 @@
+<div class="login-page">
+  <section class="login-card">
+    <div class="login-brand-icon">♻</div>
+    <p class="login-eyebrow">MUNICIPAL WASTE MANAGEMENT</p>
+    <h1>Villanueva</h1>
+    <p class="login-description">Waste Operations and Notification System</p>
+
+    <form (ngSubmit)="login()">
+      <label for="loginEmail">Email</label>
+      <input
+        id="loginEmail"
+        type="email"
+        name="loginEmail"
+        [(ngModel)]="loginEmail"
+        placeholder="Enter your registered email"
+        autocomplete="username"
+        required
+      />
+
+      <label for="loginPassword">Password</label>
+      <input
+        id="loginPassword"
+        type="password"
+        name="loginPassword"
+        [(ngModel)]="loginPassword"
+        placeholder="Enter your password"
+        autocomplete="current-password"
+        required
+      />
+
+      <p class="login-error" *ngIf="loginError()">{{ loginError() }}</p>
+
+      <button type="submit" class="login-submit" [disabled]="loggingIn()">
+        {{ loggingIn() ? 'Signing in...' : 'Sign In to Dashboard' }}
+      </button>
+    </form>
+
+    <p class="login-footer">Authorized municipal personnel only</p>
+
+  </section>
+</div>
