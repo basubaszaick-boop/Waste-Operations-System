@@ -1841,3 +1841,154 @@ button:disabled,
   opacity: .5;
   cursor: not-allowed;
 }
+
+/* ========================================
+   SMS CONCERNS, GATEWAY LINKING
+======================================== */
+.src-badge {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 10px;
+  background: #eef1ef;
+  color: #647167;
+  font-size: 10px;
+  font-weight: 700;
+}
+.src-badge.sms { background: #e6efff; color: #3568b6; }
+.verify-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 7px;
+  border-radius: 9px;
+  font-size: 9px;
+  font-weight: 700;
+}
+.verify-badge.ok { background: #e3f5e8; color: #237b43; }
+.verify-badge.warn { background: #fff1dc; color: #a96b16; }
+.sms-hint {
+  margin: 0 0 14px;
+  padding: 11px 14px;
+  border: 1px solid #f2dfb8;
+  border-radius: 10px;
+  background: #fffaf0;
+  color: #7a5a1c;
+  font-size: 12px;
+}
+.detail-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.message-box {
+  margin: 8px 0 6px;
+  padding: 12px 14px;
+  border: 1px solid #e3ebe5;
+  border-radius: 10px;
+  background: #fff;
+  color: #2d4435;
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.verify-box {
+  display: grid;
+  gap: 9px;
+  padding: 14px;
+  border: 1px solid #f2dfb8;
+  border-radius: 10px;
+  background: #fffaf0;
+}
+.verify-box p { margin: 0; color: #7a5a1c; font-size: 11px; }
+.verify-box input[type="text"],
+.verify-box input:not([type]) {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid #dfe6e0;
+  border-radius: 8px;
+  font: inherit;
+  background: #fff;
+}
+.verify-box .check { display: flex; gap: 8px; align-items: flex-start; color: #52665a; font-size: 11px; font-weight: 400; }
+.verify-box .check input { margin-top: 2px; }
+.device-state { color: #a96b16; }
+.device-state.ok { color: #237b43; }
+.device-list { display: grid; gap: 8px; }
+.device-item { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid #e6ece7; border-radius: 8px; background: #f8fbf9; }
+.device-item code { padding: 3px 7px; border-radius: 6px; background: #eef1ef; color: #2d4435; font-size: 12px; }
+.device-item small { color: #8a968e; }
+.device-pick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.sms-detect { border-left: 4px solid #e8a33d; }
+
+@media (max-width: 900px) {
+  .detail-grid { grid-template-columns: 1fr; }
+}
+
+/* ===== notification bell dropdown (Facebook-style, system branding) ===== */
+.bell-wrap { position: relative; }
+.bell.open { background: #e3f5e8; }
+.notif-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 60;
+  width: 380px;
+  max-width: calc(100vw - 24px);
+  border: 1px solid #dfe8e1;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 18px 44px #0f2a1d33;
+  overflow: hidden;
+  text-align: left;
+}
+.notif-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px 6px; }
+.notif-head h3 { margin: 0; color: #173c2a; font-size: 17px; }
+.notif-head small { color: #7b887f; font-size: 11px; }
+.notif-tabs { display: flex; gap: 6px; padding: 6px 16px 10px; }
+.notif-tabs button {
+  padding: 6px 14px; border: 0; border-radius: 18px; background: transparent;
+  color: #52665a; font-size: 12px; font-weight: 650; cursor: pointer;
+}
+.notif-tabs button:hover { background: #f0f6f2; }
+.notif-tabs button.active { background: #e3f5e8; color: #237b43; }
+.notif-list { max-height: min(420px, 60vh); overflow-y: auto; padding: 0 8px 6px; }
+.notif-item {
+  display: flex; align-items: flex-start; gap: 12px; width: 100%;
+  padding: 10px 8px; border: 0; border-radius: 10px; background: transparent;
+  text-align: left; cursor: pointer; color: inherit;
+}
+.notif-item:hover { background: #f3f8f5; }
+.notif-item.unread { background: #f1faf4; }
+.notif-item.unread:hover { background: #e6f5ec; }
+.notif-icon {
+  flex: none; display: grid; place-items: center; width: 40px; height: 40px;
+  border-radius: 50%; font-size: 17px; background: #e3f5e8; color: #237b43;
+}
+.notif-icon.cancelled { background: #ffebeb; color: #b64242; }
+.notif-icon.concern { background: #f1e8ff; color: #7547b5; }
+.notif-icon.upcoming { background: #e6efff; color: #3568b6; }
+.notif-icon.today { background: #fff1dc; color: #a96b16; }
+.notif-text { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.notif-text strong { color: #1f3a2b; font-size: 13px; }
+.notif-text span { color: #52665a; font-size: 12px; line-height: 1.35; }
+.notif-text small { color: #2f8f55; font-size: 11px; font-weight: 650; }
+.notif-item:not(.unread) .notif-text small { color: #8a968e; font-weight: 500; }
+.notif-dot { flex: none; align-self: center; width: 10px; height: 10px; border-radius: 50%; background: #2f8f55; display: inline-block; }
+h3 .notif-dot { width: 8px; height: 8px; margin-left: 6px; }
+.notif-empty { display: grid; justify-items: center; gap: 4px; padding: 30px 16px; text-align: center; color: #52665a; }
+.notif-empty > span { font-size: 28px; color: #9ab5a4; }
+.notif-empty p { margin: 0; font-size: 12px; }
+.notif-foot { display: flex; justify-content: space-between; padding: 8px 16px; border-top: 1px solid #edf2ee; background: #f8fbf9; }
+.notification-card.is-unread { border-left: 4px solid #2f8f55; }
+.notif-page-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.notif-page-head p { margin: 0; color: #52665a; font-size: 13px; }
+
+@media (max-width: 760px) {
+  .topbar { z-index: 30; }   /* keeps the dropdown above the stacked sidebar */
+  .bell-wrap { position: static; }
+  .notif-panel { position: fixed; top: 64px; left: 12px; right: 12px; width: auto; max-width: none; }
+}
+
+/* ===== Profile & Settings (one page) ===== */
+.profile-main .panel { scroll-margin-top: 80px; }
+.tab-bar .tab { cursor: pointer; }
+.photo-row { display: flex; gap: 18px; align-items: center; margin-bottom: 18px; padding-bottom: 18px; border-bottom: 1px solid #edf2ee; }
+.photo-row .hint { margin: 2px 0 8px; }
+.profile-photo.small { flex: none; position: static; width: 84px; height: 84px; margin: 0; font-size: 26px; }
+.photo-actions.left { justify-content: flex-start; margin: 0; }
+.panel > .profile-facts { margin: 0; }

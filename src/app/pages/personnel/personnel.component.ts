@@ -5,6 +5,7 @@ import { ActivityService } from '../../core/activity.service';
 import { AppUser, AuthService, Role } from '../../core/auth.service';
 import { SessionService } from '../../core/session.service';
 import { friendlyError } from '../../core/auth-errors';
+import { normalizePH } from '../../core/phone';
 import { WasteStore } from '../../core/waste.store';
 
 type RoleFilter = 'all' | Role;
@@ -65,13 +66,13 @@ export class PersonnelComponent {
 
   // ---------- manage an account ----------
   editing: AppUser | null = null;
-  editForm = { name: '', role: 'driver' as Role, barangay: '', team: '', active: true };
+  editForm = { name: '', role: 'driver' as Role, barangay: '', team: '', active: true, phone: '', smsNumber: '', smsDeviceId: '' };
   readonly editBusy = signal(false);
   readonly editError = signal('');
 
   openEdit(u: AppUser): void {
     this.editing = u;
-    this.editForm = { name: u.name, role: u.role, barangay: u.barangay, team: u.team, active: u.active };
+    this.editForm = { name: u.name, role: u.role, barangay: u.barangay, team: u.team, active: u.active, phone: u.phone, smsNumber: u.smsNumber, smsDeviceId: u.smsDeviceId };
     this.editError.set('');
   }
 
@@ -80,6 +81,10 @@ export class PersonnelComponent {
     if (!u) return;
     const f = this.editForm;
     if (f.name.trim().length < 2) return this.editError.set('Please enter the full name.');
+    if (f.role === 'barangay_head') {
+      const problem = this.checkSms(f, u.uid);
+      if (problem) return this.editError.set(problem);
+    }
     this.editBusy.set(true);
     this.editError.set('');
     try {
@@ -88,12 +93,18 @@ export class PersonnelComponent {
         barangay: f.role === 'barangay_head' ? f.barangay.trim() : '',
         team: f.role === 'driver' ? f.team.trim() : ''
       };
+      if (f.role === 'barangay_head') {
+        patch['phone'] = normalizePH(f.phone);
+        patch['smsNumber'] = normalizePH(f.smsNumber);
+        patch['smsDeviceId'] = f.smsDeviceId.trim();
+      }
       if (!this.isMe(u)) {
         patch['role'] = f.role;
         patch['active'] = f.active;
       }
       await this.auth.updateUser(this.session.user(), u.uid, patch);
       void this.activity.log(this.session.user(), 'Updated an account', `${f.name.trim()} (${this.roleLabel(f.role)})`);
+      if (f.role === 'barangay_head' && f.smsDeviceId.trim()) this.store.forgetSmsDevice(f.smsDeviceId.trim());
       this.editing = null;
       this.store.loadUsers();
       this.message.set({ ok: true, text: `Saved changes for ${f.name.trim()}.` });
@@ -102,6 +113,27 @@ export class PersonnelComponent {
     } finally {
       this.editBusy.set(false);
     }
+  }
+
+  /** Checks the SMS fields of a Barangay Head. Returns an error text, or '' when everything is fine. */
+  private checkSms(f: { phone: string; smsNumber: string; smsDeviceId: string; barangay: string }, selfUid: string): string {
+    if (!f.barangay.trim()) return 'A Barangay Head must be assigned to a barangay.';
+    if (f.phone.trim() && !normalizePH(f.phone)) return 'The official cellphone number must look like 09171234567.';
+    if (f.smsNumber.trim() && !normalizePH(f.smsNumber)) return 'The SMS receiving number must look like 09171234567.';
+    const others = this.store.users().filter(x => x.uid !== selfUid && x.role === 'barangay_head' && x.active);
+    const device = f.smsDeviceId.trim();
+    if (device && others.some(x => x.smsDeviceId === device))
+      return 'That gateway phone is already linked to another Barangay Head.';
+    const num = normalizePH(f.smsNumber);
+    if (num && others.some(x => x.smsNumber === num))
+      return 'That SMS receiving number is already used by another Barangay Head.';
+    return '';
+  }
+
+  /** Quick pick: fill the gateway device id from a phone the system has already seen. */
+  useDevice(deviceId: string, target: 'edit' | 'new'): void {
+    if (target === 'edit') { this.editForm.smsDeviceId = deviceId; this.editError.set(''); }
+    else { this.staffForm.smsDeviceId = deviceId; this.staffMessage.set(''); }
   }
 
   /** One-click activate / deactivate from the table. */
@@ -121,20 +153,27 @@ export class PersonnelComponent {
 
   // ---------- create a staff account ----------
   showAdd = false;
-  staffForm = { name: '', email: '', password: '', role: 'driver' as Role, barangay: '', team: '' };
+  staffForm = { name: '', email: '', password: '', role: 'driver' as Role, barangay: '', team: '', phone: '', smsNumber: '', smsDeviceId: '' };
   readonly staffBusy = signal(false);
   readonly staffMessage = signal('');
   readonly staffError = signal(false);
 
   async createStaffAccount(): Promise<void> {
     this.staffMessage.set('');
+    if (this.staffForm.role === 'barangay_head') {
+      const problem = this.checkSms(this.staffForm, '');
+      if (problem) { this.staffError.set(true); this.staffMessage.set(problem); return; }
+    }
     this.staffBusy.set(true);
     try {
-      await this.auth.createStaff(this.session.user(), { ...this.staffForm });
+      await this.auth.createStaff(this.session.user(), {
+        ...this.staffForm, phone: normalizePH(this.staffForm.phone), smsNumber: normalizePH(this.staffForm.smsNumber)
+      });
+      if (this.staffForm.role === 'barangay_head' && this.staffForm.smsDeviceId.trim()) this.store.forgetSmsDevice(this.staffForm.smsDeviceId.trim());
       this.staffError.set(false);
       this.staffMessage.set('Account created for ' + this.staffForm.email.trim() + '.');
       void this.activity.log(this.session.user(), 'Created an account', `${this.staffForm.name.trim()} (${this.roleLabel(this.staffForm.role)})`);
-      this.staffForm = { name: '', email: '', password: '', role: 'driver', barangay: '', team: '' };
+      this.staffForm = { name: '', email: '', password: '', role: 'driver', barangay: '', team: '', phone: '', smsNumber: '', smsDeviceId: '' };
       this.store.loadUsers();
     } catch (e: any) {
       this.staffError.set(true);

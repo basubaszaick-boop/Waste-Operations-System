@@ -1,9 +1,11 @@
 import { isPlatformBrowser } from '@angular/common';
 import { Injectable, PLATFORM_ID, inject, signal } from '@angular/core';
+import { Subscription, firstValueFrom } from 'rxjs';
 import { WasteApiService } from '../services/waste-api.service';
 import { ActivityService } from './activity.service';
 import { AppUser, AuthService } from './auth.service';
-import { ActivityEntry, AppNotification, Concern, ConcernStatus, Schedule, Status } from './models';
+import { ActivityEntry, AppNotification, Concern, ConcernStatus, Schedule, SmsDevice, Status } from './models';
+import { normalizePH } from './phone';
 import { SessionService } from './session.service';
 
 const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
@@ -35,6 +37,10 @@ export class WasteStore {
   readonly concerns = signal<Concern[]>([]);
   readonly users = signal<AppUser[]>([]);
   readonly recentActivity = signal<ActivityEntry[]>([]);
+  /** Admin only: gateway phones that texted the system but are not linked to a Barangay Head yet. */
+  readonly smsDevices = signal<SmsDevice[]>([]);
+  private concernsSub?: Subscription;
+  private knownConcernIds: Set<string> | null = null;
   readonly notice = signal('');
   /** Drivers: show only their own team's collections on Collection Records. */
   readonly teamOnly = signal(true);
@@ -46,7 +52,7 @@ export class WasteStore {
   scheduleForm: Schedule = this.emptySchedule();
 
   showConcernForm = false;
-  concernForm = { resident: '', area: '', subject: '', details: '' };
+  concernForm = { resident: '', phone: '', area: '', subject: '', details: '' };
 
   /** Called when the user moves to another page. */
   resetPageState(): void {
@@ -59,10 +65,15 @@ export class WasteStore {
   /** Forget everything from the previous person when someone signs out. */
   clearData(): void {
     this.schedules.set([]);
+    this.concernsSub?.unsubscribe();
+    this.concernsSub = undefined;
+    this.knownConcernIds = null;
     this.concerns.set([]);
     this.users.set([]);
+    this.smsDevices.set([]);
     this.recentActivity.set([]);
     this.teamOnly.set(true);
+    this.readIds.set(new Set());
   }
 
   private emptySchedule(): Schedule {
@@ -86,6 +97,8 @@ export class WasteStore {
     this.loadConcerns();
     this.loadUsers();
     this.loadActivity();
+    this.loadSmsDevices();
+    this.loadRead();
   }
 
   loadSchedules(): void {
@@ -104,15 +117,51 @@ export class WasteStore {
     });
   }
 
+  /**
+   * Resident concerns belong to the Barangay Head of that barangay. The list is LIVE: a text message that reaches
+   * the SMS gateway shows up here within a few seconds, without refreshing the page.
+   */
   loadConcerns(): void {
     const u = this.me;
-    if (u?.role !== 'barangay_head') return;   // resident concerns belong to Barangay Heads only
-    this.api.listWhere<Concern>('concerns', 'area', u.barangay).subscribe({
-      next: (data) => this.concerns.set(data),
+    if (u?.role !== 'barangay_head') return;
+    this.concernsSub?.unsubscribe();
+    this.knownConcernIds = null;
+    this.concernsSub = this.api.watchWhere<Concern>('concerns', 'area', u.barangay).subscribe({
+      next: (data) => {
+        const known = this.knownConcernIds;
+        if (known) {
+          const fresh = data.filter(c => !known.has(c.id) && c.source === 'sms');
+          if (fresh.length)
+            this.notice.set(fresh.length === 1
+              ? `New SMS concern received from ${fresh[0].senderPhone}.`
+              : `${fresh.length} new SMS concerns received.`);
+        }
+        this.knownConcernIds = new Set(data.map(c => c.id));
+        const when = (c: Concern) => c.receivedAt || c.createdAt || '';
+        this.concerns.set([...data].sort((a, b) => when(b).localeCompare(when(a))));
+      },
       error: (error) => {
         console.error('Concern loading error:', error);
         this.notice.set('Unable to load resident concerns. Publish the latest firestore.rules.');
       }
+    });
+  }
+
+  loadSmsDevices(): void {
+    if (this.me?.role !== 'admin') return;
+    this.api.list<SmsDevice>('smsUnrouted').subscribe({
+      next: (list) => this.smsDevices.set(list.sort((a, b) => String(b.lastSeen).localeCompare(String(a.lastSeen)))),
+      error: (e) => console.error('Gateway device loading error:', e)
+    });
+  }
+
+  /** Removes a detected gateway phone from the "waiting to be linked" list (after it was linked). */
+  forgetSmsDevice(deviceId: string): void {
+    const d = this.smsDevices().find(x => x.deviceId === deviceId);
+    if (!d) return;
+    this.api.remove('smsUnrouted', d.id).subscribe({
+      next: () => this.smsDevices.update(list => list.filter(x => x.id !== d.id)),
+      error: (e) => console.error('Could not remove gateway device:', e)
     });
   }
 
@@ -179,7 +228,7 @@ export class WasteStore {
   get filteredConcerns(): Concern[] {
     const q = this.searchText.toLowerCase().trim();
     return this.visibleConcerns.filter(c =>
-      [c.resident, c.area, c.subject, c.status].some(v => v.toLowerCase().includes(q))
+      [c.resident, c.area, c.subject, c.details, c.status, c.senderPhone ?? '', c.source ?? 'manual'].some(v => String(v).toLowerCase().includes(q))
     );
   }
 
@@ -280,14 +329,14 @@ export class WasteStore {
     if (p.notifyToday) {
       for (const s of this.todayOf(list).filter(x => x.status !== 'Cancelled')) {
         out.push({
-          kind: 'today', date: s.date, link,
+          id: `today|${s.id}|${s.status}`, at: `${s.date}T${s.time || '00:00'}`, kind: 'today', date: s.date, link,
           title: s.status === 'Completed' ? 'Collection completed today' : 'Collection today',
           message: `${where(s)} at ${this.time12(s.time)} - ${s.status}.`
         });
       }
       for (const s of this.overdueOf(list)) {
         out.push({
-          kind: 'today', date: s.date, link,
+          id: `overdue|${s.id}|${s.status}`, at: `${s.date}T${s.time || '00:00'}`, kind: 'today', date: s.date, link,
           title: 'Overdue collection',
           message: `${where(s)} was planned for ${s.date} and is still ${s.status.toLowerCase()}.`
         });
@@ -296,7 +345,7 @@ export class WasteStore {
     if (p.notifyUpcoming) {
       for (const s of this.upcomingOf(list).filter(x => x.date <= soon)) {
         out.push({
-          kind: 'upcoming', date: s.date, link,
+          id: `upcoming|${s.id}|${s.date}|${s.time}`, at: `${s.date}T${s.time || '00:00'}`, kind: 'upcoming', date: s.date, link,
           title: 'Upcoming collection',
           message: `${where(s)} on ${s.date} at ${this.time12(s.time)}.`
         });
@@ -305,7 +354,7 @@ export class WasteStore {
     if (p.notifyCancelled) {
       for (const s of list.filter(x => x.status === 'Cancelled' && x.date >= t)) {
         out.push({
-          kind: 'cancelled', date: s.date, link,
+          id: `cancelled|${s.id}`, at: `${s.date}T${s.time || '00:00'}`, kind: 'cancelled', date: s.date, link,
           title: 'Collection cancelled',
           message: `${where(s)} on ${s.date} was cancelled.`
         });
@@ -314,13 +363,58 @@ export class WasteStore {
     if (p.notifyConcerns && u.role === 'barangay_head') {
       for (const c of this.openConcerns) {
         out.push({
-          kind: 'concern', date: c.createdAt.slice(0, 10), link: '/concerns',
-          title: c.status === 'Pending' ? 'New resident concern' : 'Concern under review',
-          message: `${c.subject} - ${c.area} (${c.resident}).`
+          id: `concern|${c.id}|${c.status}`, at: c.receivedAt || c.createdAt, kind: 'concern', date: c.createdAt.slice(0, 10), link: '/concerns',
+          title: c.status === 'Pending'
+            ? (c.source === 'sms' ? 'New SMS concern' : 'New resident concern')
+            : 'Concern under review',
+          message: `${c.subject} - ${c.resident}.`
         });
       }
     }
     return out;
+  }
+
+  // ---------- READ / UNREAD (remembered per person on this device) ----------
+
+  /** ids of notifications this person already opened or marked as read. */
+  readonly readIds = signal<ReadonlySet<string>>(new Set());
+
+  private get readKey(): string {
+    return 'vwo-read-' + (this.me?.uid ?? '');
+  }
+
+  loadRead(): void {
+    try {
+      const raw = localStorage.getItem(this.readKey);
+      this.readIds.set(new Set<string>(raw ? JSON.parse(raw) : []));
+    } catch { this.readIds.set(new Set()); }
+  }
+
+  private saveRead(ids: Set<string>): void {
+    // keep only ids that still exist, so the list never grows forever
+    const live = new Set(this.notifications.map(n => n.id));
+    const keep = [...ids].filter(id => live.has(id));
+    this.readIds.set(new Set(keep));
+    try { localStorage.setItem(this.readKey, JSON.stringify(keep)); } catch { /* private mode: stays in memory */ }
+  }
+
+  isRead(n: AppNotification): boolean {
+    return this.readIds().has(n.id);
+  }
+
+  /** Real number of notifications that were not read yet (this is what the bell badge shows). */
+  get unreadCount(): number {
+    const read = this.readIds();
+    return this.notifications.filter(n => !read.has(n.id)).length;
+  }
+
+  markRead(n: AppNotification): void {
+    if (this.isRead(n)) return;
+    this.saveRead(new Set([...this.readIds(), n.id]));
+  }
+
+  markAllRead(): void {
+    this.saveRead(new Set([...this.readIds(), ...this.notifications.map(n => n.id)]));
   }
 
   // ---------- SCHEDULE ACTIONS ----------
@@ -411,38 +505,53 @@ export class WasteStore {
 
   // ---------- CONCERN ACTIONS (Firestore collection: concerns) ----------
 
+  /** "#A1B2C" - the short reference the resident also receives by SMS. */
+  concernRef(c: Concern): string {
+    return '#' + c.id.slice(-5).toUpperCase();
+  }
+
   openConcernForm(): void {
     const u = this.me;
-    this.concernForm = { resident: '', area: u?.role === 'barangay_head' ? u.barangay : '', subject: '', details: '' };
+    this.concernForm = { resident: '', phone: '', area: u?.role === 'barangay_head' ? u.barangay : '', subject: '', details: '' };
     this.showConcernForm = true;
     this.notice.set('');
   }
 
+  /** A concern typed in by the Barangay Head (the SMS ones are created automatically by the server). */
   saveConcern(): void {
     const f = this.concernForm;
     const u = this.me;
-    if (!u) return;
-    const area = u.role === 'barangay_head' ? u.barangay : f.area.trim();
-    if (!f.resident.trim() || !area || !f.subject.trim()) {
-      this.notice.set('Please enter the resident, area and subject.');
+    if (u?.role !== 'barangay_head') return;
+    const phoneText = f.phone.trim();
+    const phone = normalizePH(phoneText);
+    if (!f.resident.trim() || !f.subject.trim()) {
+      this.notice.set('Please enter the resident name and the subject.');
       return;
     }
+    if (phoneText && !phone) {
+      this.notice.set('The mobile number must look like 09171234567.');
+      return;
+    }
+    const nowIso = new Date().toISOString();
     const concern: Concern = {
       id: String(Date.now()),
       resident: f.resident.trim(),
-      area,
+      area: u.barangay,
       subject: f.subject.trim(),
       details: f.details.trim(),
       status: 'Pending',
       createdBy: u.email,
-      createdAt: new Date().toISOString()
+      createdAt: nowIso,
+      source: 'manual',
+      senderPhone: phone,
+      verified: true,
+      receivedAt: nowIso
     };
     this.api.create<Concern>('concerns', concern).subscribe({
-      next: (created) => {
-        this.concerns.update(list => [created, ...list]);
+      next: () => {
         this.showConcernForm = false;
         this.notice.set('Resident concern recorded.');
-        this.log('Recorded a resident concern', `${created.subject} - ${created.area}`);
+        this.log('Recorded a resident concern', `${concern.subject} - ${concern.area}`);
       },
       error: (error) => {
         console.error('Concern create error:', error);
@@ -452,10 +561,12 @@ export class WasteStore {
   }
 
   changeConcernStatus(concern: Concern, status: ConcernStatus): void {
-    this.api.update<Concern>('concerns', { ...concern, status }).subscribe({
-      next: (updated) => {
-        this.concerns.update(list => list.map(c => (c.id === updated.id ? updated : c)));
-        this.notice.set('Resident concern updated.');
+    this.api.patch('concerns', concern.id, { status }).subscribe({
+      next: () => {
+        this.notice.set(
+          concern.senderPhone && status !== concern.status
+            ? 'Concern updated. A registered resident who agreed to SMS updates is notified automatically.'
+            : 'Resident concern updated.');
         this.log('Updated a resident concern', `${concern.subject} - ${status}`);
       },
       error: (error) => {
@@ -463,6 +574,33 @@ export class WasteStore {
         this.notice.set('Failed to update the concern.');
       }
     });
+  }
+
+  /**
+   * The Barangay Head confirms who sent an SMS. If the resident agreed to receive SMS updates, the resident is also
+   * saved in the residents list so the next text is recognised automatically and status updates can be sent.
+   */
+  async verifySender(c: Concern, name: string, purok: string, consent: boolean): Promise<string> {
+    const u = this.me;
+    const phone = normalizePH(c.senderPhone);
+    if (u?.role !== 'barangay_head') return 'Only the Barangay Head can verify a sender.';
+    if (name.trim().length < 2) return 'Please enter the resident\'s full name.';
+    if (consent && !purok.trim()) return 'Please enter the purok / zone to register the resident.';
+    if (consent && !phone) return 'This sender has no valid mobile number to register.';
+    try {
+      if (consent) {
+        await firstValueFrom(this.api.create('residents', {
+          id: String(Date.now()), name: name.trim(), barangay: c.area, purok: purok.trim(), mobile: phone, consent: true, ready: false
+        }));
+      }
+      await firstValueFrom(this.api.patch('concerns', c.id, { resident: name.trim(), verified: true }));
+      this.log('Verified an SMS sender', `${name.trim()} - ${c.area}`);
+      this.notice.set(consent ? 'Sender verified and registered as a resident.' : 'Sender verified.');
+      return '';
+    } catch (e) {
+      console.error('Verify error:', e);
+      return 'Could not save. Publish the latest firestore.rules and try again.';
+    }
   }
 
   // ---------- EXPORT SCHEDULES (CSV) ----------

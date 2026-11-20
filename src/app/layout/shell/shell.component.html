@@ -24,7 +24,7 @@
     </nav>
 
     <div class="sidebar-bottom">
-      <button class="profile profile-link" (click)="go('profile')" title="Open my profile">
+      <button class="profile profile-link" (click)="go('profile')" title="Profile &amp; Settings">
         <div class="avatar" [class.has-photo]="session.photoStyle()" [style.background-image]="session.photoStyle()">
           {{ session.photoStyle() ? '' : session.initials() }}
         </div>
@@ -48,11 +48,53 @@
       <div class="top-actions">
         <span class="online-dot"></span>
         <span class="online-text">{{ session.roleLabel() }}</span>
-        <button class="icon-button bell" (click)="go('notifications')" title="Notifications">
-          ♧
-          <span class="badge" *ngIf="store.notifications.length">{{ store.notifications.length > 9 ? '9+' : store.notifications.length }}</span>
-        </button>
-        <button class="avatar small-avatar avatar-button" (click)="go('profile')" title="My profile"
+        <div class="bell-wrap">
+          <button class="icon-button bell" (click)="toggleBell($event)" title="Notifications"
+            [class.open]="bellOpen()" aria-haspopup="true" [attr.aria-expanded]="bellOpen()">
+            ♧
+            <span class="badge" *ngIf="store.unreadCount > 0">{{ store.unreadCount > 9 ? '9+' : store.unreadCount }}</span>
+          </button>
+
+          <div class="notif-panel" *ngIf="bellOpen()" (click)="$event.stopPropagation()" role="dialog" aria-label="Notifications">
+            <div class="notif-head">
+              <div>
+                <h3>Notifications</h3>
+                <small>{{ store.unreadCount }} unread</small>
+              </div>
+              <button class="text-button" (click)="store.markAllRead()" [disabled]="store.unreadCount === 0">Mark all as read</button>
+            </div>
+
+            <div class="notif-tabs">
+              <button [class.active]="!onlyUnread()" (click)="onlyUnread.set(false)">All</button>
+              <button [class.active]="onlyUnread()" (click)="onlyUnread.set(true)">Unread</button>
+            </div>
+
+            <div class="notif-list">
+              <button class="notif-item" *ngFor="let n of shown(); trackBy: trackN"
+                [class.unread]="!store.isRead(n)" (click)="openNotif(n)">
+                <span class="notif-icon" [ngClass]="n.kind">{{ icons[n.kind] }}</span>
+                <span class="notif-text">
+                  <strong>{{ n.title }}</strong>
+                  <span>{{ n.message }}</span>
+                  <small>{{ when(n.at) }}</small>
+                </span>
+                <i class="notif-dot" *ngIf="!store.isRead(n)" aria-label="Unread"></i>
+              </button>
+
+              <div class="notif-empty" *ngIf="shown().length === 0">
+                <span>♧</span>
+                <strong>{{ onlyUnread() && store.notifications.length ? 'No unread notifications' : "You're all caught up" }}</strong>
+                <p>{{ onlyUnread() && store.notifications.length ? 'Everything has been read.' : 'Nothing needs your attention right now.' }}</p>
+              </div>
+            </div>
+
+            <div class="notif-foot">
+              <button class="text-button" (click)="seeAll()">See all notifications</button>
+              <button class="text-button" (click)="prefs()">Preferences</button>
+            </div>
+          </div>
+        </div>
+        <button class="avatar small-avatar avatar-button" (click)="go('profile')" title="Profile &amp; Settings"
           [class.has-photo]="session.photoStyle()" [style.background-image]="session.photoStyle()">
           {{ session.photoStyle() ? '' : session.initials() }}
         </button>

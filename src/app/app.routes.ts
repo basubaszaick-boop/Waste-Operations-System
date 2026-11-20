@@ -54,10 +54,7 @@ export const routes: Routes = [
         path: 'profile', canActivate: [roleGuard], data: { roles: rolesFor('profile') },
         loadComponent: () => import('./pages/profile/profile.component').then(m => m.ProfileComponent)
       },
-      {
-        path: 'settings', canActivate: [roleGuard], data: { roles: rolesFor('settings') },
-        loadComponent: () => import('./pages/settings/settings.component').then(m => m.SettingsComponent)
-      }
+      { path: 'settings', redirectTo: 'profile', pathMatch: 'full' }
     ]
   },
 

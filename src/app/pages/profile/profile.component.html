@@ -11,15 +11,6 @@
     <span class="role-pill" [ngClass]="u.role">{{ roleName() }}</span>
     <p class="profile-sub" *ngIf="u.position">{{ u.position }}</p>
 
-    <div class="photo-actions">
-      <label class="secondary-button file-button" [class.disabled]="photoBusy()">
-        {{ photoBusy() ? 'Saving...' : '📷 Change photo' }}
-        <input type="file" accept="image/*" (change)="onPhoto($event)" [disabled]="photoBusy()" hidden />
-      </label>
-      <button class="text-button danger-text" *ngIf="u.photo" (click)="removePhoto()" [disabled]="photoBusy()">Remove</button>
-    </div>
-    <p class="form-msg" *ngIf="photoMsg() as m" [class.ok]="m.ok" [class.bad]="!m.ok">{{ m.text }}</p>
-
     <div class="profile-stats">
       <button *ngFor="let h of highlights()" (click)="go(h.link)">
         <strong>{{ h.value }}</strong>
@@ -27,32 +18,38 @@
       </button>
     </div>
 
-    <dl class="profile-facts">
-      <div><dt>Email</dt><dd>{{ u.email }}</dd></div>
-      <div *ngIf="u.role === 'barangay_head'"><dt>Barangay</dt><dd>{{ u.barangay }}</dd></div>
-      <div *ngIf="u.role === 'driver'"><dt>Team</dt><dd>{{ u.team || 'Not assigned yet' }}</dd></div>
-      <div *ngIf="u.role === 'driver' && u.vehicle"><dt>Vehicle</dt><dd>{{ u.vehicle }}</dd></div>
-      <div *ngIf="u.phone"><dt>Mobile</dt><dd>{{ u.phone }}</dd></div>
-      <div><dt>Status</dt><dd><span class="status completed">Active</span></dd></div>
-      <div *ngIf="u.createdAt"><dt>Member since</dt><dd>{{ u.createdAt | date:'mediumDate' }}</dd></div>
-      <div *ngIf="u.lastSignIn"><dt>Last sign-in</dt><dd>{{ u.lastSignIn | date:'medium' }}</dd></div>
-    </dl>
   </aside>
 
-  <!-- ===== right: tabs ===== -->
+  <!-- ===== right: sections ===== -->
   <section class="profile-main">
-    <div class="tab-bar" role="tablist">
-      <button *ngFor="let t of tabs" role="tab" class="tab" [class.active]="tab() === t.id" (click)="setTab(t.id)">
-        <span>{{ t.icon }}</span> {{ t.label }}
-      </button>
-    </div>
+    <nav class="tab-bar" aria-label="Sections">
+      <button *ngFor="let t of tabs" class="tab" (click)="jump(t.id)"><span>{{ t.icon }}</span> {{ t.label }}</button>
+    </nav>
 
-    <!-- PERSONAL INFO -->
-    <section class="panel" *ngIf="tab() === 'info'">
+    <!-- A. PERSONAL INFORMATION -->
+    <section class="panel" id="personal">
       <div class="panel-heading">
         <div>
           <h3>Personal Information</h3>
           <p>Keep your contact details up to date so the office can reach you.</p>
+        </div>
+      </div>
+
+      <div class="photo-row">
+        <div class="profile-photo small" [class.has-photo]="session.photoStyle()" [style.background-image]="session.photoStyle()">
+          {{ session.photoStyle() ? '' : session.initials() }}
+        </div>
+        <div>
+          <strong>Profile picture</strong>
+          <p class="hint">JPG or PNG, under 8 MB. It is cropped to a square.</p>
+          <div class="photo-actions left">
+            <label class="secondary-button file-button" [class.disabled]="photoBusy()">
+              {{ photoBusy() ? 'Saving...' : '📷 Change photo' }}
+              <input type="file" accept="image/*" (change)="onPhoto($event)" [disabled]="photoBusy()" hidden />
+            </label>
+            <button class="text-button danger-text" *ngIf="u.photo" (click)="removePhoto()" [disabled]="photoBusy()">Remove</button>
+          </div>
+          <p class="form-msg" *ngIf="photoMsg() as m" [class.ok]="m.ok" [class.bad]="!m.ok">{{ m.text }}</p>
         </div>
       </div>
 
@@ -61,13 +58,13 @@
           <label>Full name *
             <input name="pfName" [(ngModel)]="form.name" maxlength="80" required />
           </label>
-          <label>Mobile number
+          <label>Phone number
             <input name="pfPhone" [(ngModel)]="form.phone" inputmode="numeric" maxlength="11" placeholder="09171234567" />
           </label>
         </div>
 
         <div class="form-row">
-          <label>Email (sign-in)
+          <label>Email address (used to sign in)
             <input [value]="u.email" disabled />
           </label>
           <label>
@@ -81,14 +78,6 @@
           <label>Vehicle plate number
             <input name="pfVeh" [(ngModel)]="form.vehicle" maxlength="30" placeholder="e.g. ABC 1234" />
           </label>
-          <label>Assigned team
-            <input [value]="u.team || 'Not assigned yet'" disabled />
-          </label>
-        </div>
-        <div class="form-row" *ngIf="u.role === 'barangay_head'">
-          <label>Assigned barangay
-            <input [value]="u.barangay" disabled />
-          </label>
         </div>
 
         <label>Address
@@ -100,7 +89,7 @@
           <small class="counter">{{ form.bio.length }}/300</small>
         </label>
 
-        <p class="hint" *ngIf="u.role !== 'admin'">Your role, barangay and team are set by the administrator and cannot be changed here.</p>
+        <p class="hint">Your email is your sign-in name and can only be changed by the administrator.</p>
         <p class="form-msg" *ngIf="infoMsg() as m" [class.ok]="m.ok" [class.bad]="!m.ok">{{ m.text }}</p>
 
         <div class="modal-actions">
@@ -110,12 +99,12 @@
       </form>
     </section>
 
-    <!-- SECURITY -->
-    <section class="panel" *ngIf="tab() === 'security'">
+    <!-- B. ACCOUNT SECURITY -->
+    <section class="panel" id="security">
       <div class="panel-heading">
         <div>
-          <h3>Change Password</h3>
-          <p>You will be asked for your current password first.</p>
+          <h3>Account Security</h3>
+          <p>Change your password. You will be asked for your current password first.</p>
         </div>
         <button type="button" class="text-button" (click)="showPw.set(!showPw())">{{ showPw() ? 'Hide' : 'Show' }} passwords</button>
       </div>
@@ -150,12 +139,12 @@
       </div>
     </section>
 
-    <!-- PREFERENCES -->
-    <section class="panel" *ngIf="tab() === 'prefs'">
+    <!-- C. NOTIFICATION PREFERENCES -->
+    <section class="panel" id="notifications">
       <div class="panel-heading">
         <div>
           <h3>Notification Preferences</h3>
-          <p>Choose what appears on your Notifications page and the bell icon. Changes save instantly.</p>
+          <p>Choose what appears under the bell icon. Changes save instantly.</p>
         </div>
       </div>
 
@@ -172,12 +161,54 @@
 
       <p class="form-msg" *ngIf="prefMsg() as m" [class.ok]="m.ok" [class.bad]="!m.ok">{{ m.text }}</p>
       <div class="modal-actions">
-        <button class="secondary-button" (click)="go('/notifications')">View my notifications ({{ store.notifications.length }})</button>
+        <button class="secondary-button" (click)="go('/notifications')">See all notifications ({{ store.notifications.length }})</button>
       </div>
     </section>
 
-    <!-- ACTIVITY -->
-    <section class="panel" *ngIf="tab() === 'activity'">
+    <!-- D. ACCOUNT INFORMATION -->
+    <section class="panel" id="account">
+      <div class="panel-heading">
+        <div>
+          <h3>Account Information</h3>
+          <p>Set by the administrator. Ask the administrator if something here needs to change.</p>
+        </div>
+      </div>
+      <dl class="profile-facts">
+        <div><dt>User role</dt><dd><span class="role-pill small" [ngClass]="u.role">{{ roleName() }}</span></dd></div>
+        <div *ngIf="u.role === 'driver'"><dt>Assigned team</dt><dd>{{ u.team || 'Not assigned yet' }}</dd></div>
+        <div *ngIf="u.role === 'barangay_head'"><dt>Assigned barangay</dt><dd>{{ u.barangay }}</dd></div>
+        <div *ngIf="u.role === 'barangay_head'"><dt>Residents text</dt><dd>{{ u.smsNumber || 'Not set yet' }}</dd></div>
+        <div *ngIf="u.role === 'barangay_head'"><dt>SMS gateway</dt><dd><span class="status" [ngClass]="u.smsDeviceId ? 'completed' : 'scheduled'">{{ u.smsDeviceId ? 'Linked' : 'Not linked' }}</span></dd></div>
+        <div><dt>Account status</dt><dd><span class="status completed">Active</span></dd></div>
+        <div *ngIf="u.createdAt"><dt>Member since</dt><dd>{{ u.createdAt | date:'mediumDate' }}</dd></div>
+        <div *ngIf="u.lastSignIn"><dt>Last sign-in</dt><dd>{{ u.lastSignIn | date:'medium' }}</dd></div>
+      </dl>
+    </section>
+
+    <!-- E. SYSTEM PREFERENCES -->
+    <section class="panel" id="system">
+      <div class="panel-heading">
+        <div>
+          <h3>System Preferences</h3>
+          <p>How this system is set up.</p>
+        </div>
+      </div>
+      <div class="setting-row">
+        <div><strong>Application</strong><p>Villanueva Municipal Waste Operations and Notification System</p></div>
+        <span class="status completed">Prototype</span>
+      </div>
+      <div class="setting-row">
+        <div><strong>Data storage</strong><p>Cloud Firestore: schedules, resident concerns (Barangay Heads only), accounts and the activity log are shared by every signed-in user.</p></div>
+        <span class="status completed">Cloud</span>
+      </div>
+      <div class="setting-row">
+        <div><strong>Authentication</strong><p>Firebase Email/Password sign-in with role-based access.</p></div>
+        <span class="status completed">Firebase</span>
+      </div>
+    </section>
+
+    <!-- MY ACTIVITY -->
+    <section class="panel" id="activity">
       <div class="panel-heading">
         <div>
           <h3>My Recent Activity</h3>

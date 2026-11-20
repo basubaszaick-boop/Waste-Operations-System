@@ -44,7 +44,13 @@
           </td>
           <td><span class="role-pill small" [ngClass]="u.role">{{ roleLabel(u.role) }}</span></td>
           <td>
-            <ng-container *ngIf="u.role === 'barangay_head'">{{ u.barangay }}</ng-container>
+            <ng-container *ngIf="u.role === 'barangay_head'">
+              {{ u.barangay }}
+              <small class="cell-sub">
+                SMS {{ u.smsNumber || 'number not set' }} ·
+                <span class="device-state" [class.ok]="u.smsDeviceId">{{ u.smsDeviceId ? 'gateway linked' : 'gateway not linked' }}</span>
+              </small>
+            </ng-container>
             <ng-container *ngIf="u.role === 'driver'">{{ u.team || 'No team yet' }}</ng-container>
             <ng-container *ngIf="u.role === 'admin'">—</ng-container>
           </td>
@@ -63,11 +69,26 @@
   </div>
 </section>
 
+<section class="panel sms-detect" *ngIf="store.smsDevices().length">
+  <div class="panel-heading">
+    <div>
+      <h3>Gateway phones waiting to be linked</h3>
+      <p>These phones sent a text to the system but are not linked to a Barangay Head. Open <strong>Manage</strong> on the right Barangay Head and pick the phone.</p>
+    </div>
+  </div>
+  <div class="device-list">
+    <div class="device-item" *ngFor="let d of store.smsDevices()">
+      <code>{{ d.deviceId }}</code>
+      <small>last text {{ d.lastSeen | date:'MMM d, h:mm a' }} · {{ d.count }} message{{ d.count === 1 ? '' : 's' }}</small>
+    </div>
+  </div>
+</section>
+
 <section class="panel" *ngIf="showAdd">
   <div class="toolbar">
     <div>
       <h3>Create Staff Account</h3>
-      <p>Only the administrator can create accounts. Staff sign in with this email and temporary password, then change it under My Profile.</p>
+      <p>Only the administrator can create accounts. Staff sign in with this email and temporary password, then change it under Profile &amp; Settings.</p>
     </div>
   </div>
   <form (ngSubmit)="createStaffAccount()" class="schedule-form">
@@ -90,6 +111,20 @@
     <label *ngIf="staffForm.role === 'barangay_head'">Barangay
       <input name="sfBrgy" [(ngModel)]="staffForm.barangay" placeholder="e.g. Poblacion" required />
     </label>
+    <ng-container *ngIf="staffForm.role === 'barangay_head'">
+      <label>Official cellphone number
+        <input name="sfPhone" [(ngModel)]="staffForm.phone" inputmode="numeric" placeholder="09171234567" />
+      </label>
+      <label>SMS receiving number (residents text this)
+        <input name="sfSms" [(ngModel)]="staffForm.smsNumber" inputmode="numeric" placeholder="09171234567" />
+      </label>
+      <label>SMS gateway device ID (can be added later)
+        <input name="sfDev" [(ngModel)]="staffForm.smsDeviceId" autocomplete="off" />
+        <span class="device-pick" *ngIf="store.smsDevices().length">
+          <button type="button" class="chip" *ngFor="let d of store.smsDevices()" (click)="useDevice(d.deviceId, 'new')">{{ d.deviceId }}</button>
+        </span>
+      </label>
+    </ng-container>
     <label *ngIf="staffForm.role === 'driver'">Team (optional)
       <input name="sfTeam" [(ngModel)]="staffForm.team" list="teamNames" placeholder="e.g. Team Alpha" />
     </label>
@@ -137,6 +172,22 @@
       <label *ngIf="editForm.role === 'barangay_head'">Barangay *
         <input name="emBrgy" [(ngModel)]="editForm.barangay" placeholder="e.g. Poblacion" required />
       </label>
+      <ng-container *ngIf="editForm.role === 'barangay_head'">
+        <label>Official cellphone number
+          <input name="emPhone" [(ngModel)]="editForm.phone" inputmode="numeric" placeholder="09171234567" />
+        </label>
+        <label>SMS receiving number (residents text this)
+          <input name="emSms" [(ngModel)]="editForm.smsNumber" inputmode="numeric" placeholder="09171234567" />
+          <small class="counter left">The SIM number of the phone that receives residents' texts. Residents are told to text this number.</small>
+        </label>
+        <label>SMS gateway device ID
+          <input name="emDev" [(ngModel)]="editForm.smsDeviceId" autocomplete="off" placeholder="Pick a detected phone below, or paste the ID" />
+          <span class="device-pick" *ngIf="store.smsDevices().length">
+            <button type="button" class="chip" *ngFor="let d of store.smsDevices()" (click)="useDevice(d.deviceId, 'edit')">{{ d.deviceId }}</button>
+          </span>
+          <small class="counter left">Links the Android gateway phone to this barangay. Texts received by that phone become this barangay's concerns.</small>
+        </label>
+      </ng-container>
       <label *ngIf="editForm.role === 'driver'">Assigned team
         <input name="emTeam" [(ngModel)]="editForm.team" list="teamNames" placeholder="e.g. Team Alpha" />
         <small class="counter left">The driver sees the collections of this team.</small>

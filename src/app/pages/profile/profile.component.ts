@@ -9,7 +9,7 @@ import { ActivityEntry } from '../../core/models';
 import { SessionService } from '../../core/session.service';
 import { WasteStore } from '../../core/waste.store';
 
-type Tab = 'info' | 'security' | 'prefs' | 'activity';
+type Tab = 'personal' | 'security' | 'notifications' | 'account' | 'system' | 'activity';
 interface Msg { text: string; ok: boolean; }
 
 @Component({
@@ -24,12 +24,13 @@ export class ProfileComponent implements OnInit {
   private readonly activity = inject(ActivityService);
   private readonly router = inject(Router);
 
-  readonly tab = signal<Tab>('info');
   readonly tabs: { id: Tab; label: string; icon: string }[] = [
-    { id: 'info', label: 'Personal Info', icon: '☺' },
+    { id: 'personal', label: 'Personal', icon: '☺' },
     { id: 'security', label: 'Security', icon: '🔒' },
-    { id: 'prefs', label: 'Preferences', icon: '⚙' },
-    { id: 'activity', label: 'My Activity', icon: '☰' }
+    { id: 'notifications', label: 'Notifications', icon: '♧' },
+    { id: 'account', label: 'Account', icon: '▤' },
+    { id: 'system', label: 'System', icon: '⚙' },
+    { id: 'activity', label: 'Activity', icon: '☰' }
   ];
 
   // ----- personal info -----
@@ -118,18 +119,21 @@ export class ProfileComponent implements OnInit {
 
   ngOnInit(): void {
     this.resetForm();
+    this.loadActivity();
+    // opened from the bell ("Preferences") -> scroll to that section
+    const target = this.router.url.split('#')[1];
+    if (target) setTimeout(() => this.jump(target), 150);
   }
 
-  private resetForm(): void {
+  resetForm(): void {
     const u = this.user();
     if (!u) return;
     this.form = { name: u.name, phone: u.phone, address: u.address, bio: u.bio, position: u.position, vehicle: u.vehicle };
     this.infoMsg.set(null);
   }
 
-  setTab(t: Tab): void {
-    this.tab.set(t);
-    if (t === 'activity' && this.entries().length === 0) this.loadActivity();
+  jump(id: string): void {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   go(path: string): void {

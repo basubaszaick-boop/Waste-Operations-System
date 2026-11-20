@@ -8,8 +8,10 @@ import {
   deleteDoc,
   doc,
   getDocs,
+  onSnapshot,
   query,
   setDoc,
+  updateDoc,
   where
 } from 'firebase/firestore';
 import { db } from '../core/firebase';
@@ -77,6 +79,22 @@ export class WasteApiService {
     return from(getDocs(query(collection(db, resource), where(field, '==', value)))).pipe(
       map(snap => snap.docs.map(d => ({ ...d.data(), id: d.id }) as T))
     );
+  }
+
+  /** Live version of listWhere: emits again every time a matching document is added or changed. */
+  watchWhere<T>(resource: string, field: string, value: string): Observable<T[]> {
+    return new Observable<T[]>(subscriber =>
+      onSnapshot(
+        query(collection(db, resource), where(field, '==', value)),
+        snap => subscriber.next(snap.docs.map(d => ({ ...d.data(), id: d.id }) as T)),
+        err => subscriber.error(err)
+      )
+    );
+  }
+
+  /** Changes only the given fields of one document. */
+  patch(resource: string, id: string, fields: Record<string, unknown>): Observable<void> {
+    return from(updateDoc(doc(db, resource, id), fields));
   }
 
   create<T extends { id?: string }>(resource: string, value: T): Observable<T> {

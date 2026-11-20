@@ -1,9 +1,13 @@
+<div class="panel-heading notif-page-head" *ngIf="store.notifications.length">
+  <p>{{ store.unreadCount }} unread of {{ store.notifications.length }}</p>
+  <button class="secondary-button" (click)="store.markAllRead()" [disabled]="store.unreadCount === 0">Mark all as read</button>
+</div>
 <div class="notification-list">
-  <button class="panel notification-card clickable" *ngFor="let n of store.notifications" (click)="open(n.link)">
+  <button class="panel notification-card clickable" *ngFor="let n of store.notifications" (click)="openOne(n)" [class.is-unread]="!store.isRead(n)">
     <div class="notification-large" [ngClass]="n.kind">♧</div>
     <div class="notification-body">
       <div class="notification-meta">{{ labels[n.kind] }} · {{ n.date }}</div>
-      <h3>{{ n.title }}</h3>
+      <h3>{{ n.title }} <i class="notif-dot" *ngIf="!store.isRead(n)"></i></h3>
       <p>{{ n.message }}</p>
     </div>
     <b class="go">›</b>
@@ -11,8 +15,8 @@
 
   <div class="panel empty-block" *ngIf="store.notifications.length === 0">
     <strong>You're all caught up.</strong>
-    <p>Nothing needs your attention right now. You can change what appears here under My Profile → Preferences.</p>
-    <button class="secondary-button" (click)="open('/profile')">Open preferences</button>
+    <p>Nothing needs your attention right now. You can change what appears here under Profile & Settings → Notification Preferences.</p>
+    <button class="secondary-button" (click)="open('/profile')">Open Profile & Settings</button>
   </div>
 </div>
 <p class="info-note">These reminders are built from the live schedules and concerns you are allowed to see. Tap one to open it.</p>

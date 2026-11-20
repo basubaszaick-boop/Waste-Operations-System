@@ -2,32 +2,53 @@
   <div class="toolbar">
     <div>
       <h3>Resident Concerns</h3>
-      <p>Concerns raised in {{ session.user()?.barangay }}. Tap a row to read the details.</p>
+      <p>Concerns for {{ session.user()?.barangay }}. Texts sent to your barangay's SMS number appear here automatically.</p>
     </div>
     <div class="toolbar-actions">
-      <input class="search" [(ngModel)]="store.searchText" placeholder="Search concerns..." />
+      <input class="search" [(ngModel)]="store.searchText" placeholder="Search name, number, concern..." />
+      <button class="primary-button" (click)="store.openConcernForm()">＋ Record Concern</button>
     </div>
+  </div>
+
+  <div class="chip-row">
+    <button *ngFor="let f of filters" class="chip" [class.active]="filter() === f.id" (click)="filter.set(f.id)">
+      {{ f.label }} <b>{{ countOf(f.id) }}</b>
+    </button>
+  </div>
+
+  <div class="sms-hint" *ngIf="!session.user()?.smsDeviceId">
+    <strong>SMS reporting is not linked yet.</strong>
+    Ask the administrator to link your gateway phone in Personnel so residents can report by text message.
   </div>
 
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
-          <th>REFERENCE</th>
+          <th>REF</th>
           <th>RESIDENT</th>
-          <th>AREA</th>
+          <th>SENDER NUMBER</th>
           <th>CONCERN</th>
+          <th>RECEIVED</th>
+          <th>VIA</th>
           <th>STATUS</th>
           <th>UPDATE</th>
         </tr>
       </thead>
       <tbody>
-        <ng-container *ngFor="let c of store.filteredConcerns">
-          <tr class="clickable-row" (click)="toggle(c.id)">
-            <td>#{{ c.id.slice(-5) }}</td>
-            <td><strong>{{ c.resident }}</strong></td>
-            <td>{{ c.area }}</td>
+        <ng-container *ngFor="let c of shown">
+          <tr class="clickable-row" (click)="toggle(c)">
+            <td>{{ store.concernRef(c) }}</td>
+            <td>
+              <strong>{{ c.resident }}</strong>
+              <span class="verify-badge" *ngIf="isSms(c)" [class.ok]="c.verified" [class.warn]="!c.verified">
+                {{ c.verified ? '✓ Verified' : 'Unverified' }}
+              </span>
+            </td>
+            <td>{{ c.senderPhone || '—' }}</td>
             <td>{{ c.subject }}</td>
+            <td>{{ received(c) | date:'MMM d, y' }}<small class="cell-sub">{{ received(c) | date:'h:mm a' }}</small></td>
+            <td><span class="src-badge" [class.sms]="isSms(c)">{{ isSms(c) ? 'SMS' : 'Manual' }}</span></td>
             <td>
               <span class="status" [ngClass]="c.status === 'Resolved' ? 'completed' : c.status === 'In Review' ? 'in-progress' : 'scheduled'">
                 {{ c.status }}
@@ -39,15 +60,35 @@
               </select>
             </td>
           </tr>
+
           <tr class="detail-row" *ngIf="expanded === c.id">
-            <td colspan="6">
-              <strong>Details:</strong> {{ c.details || 'No further details were written.' }}
-              <small class="cell-sub">Recorded {{ c.createdAt | date:'medium' }} by {{ c.createdBy }}</small>
+            <td colspan="8">
+              <div class="detail-grid">
+                <div>
+                  <strong>{{ isSms(c) ? 'Message received' : 'Details' }}</strong>
+                  <p class="message-box">{{ c.details || 'No further details were written.' }}</p>
+                  <small class="cell-sub" *ngIf="isSms(c) && ackText(c)">{{ ackText(c) }}</small>
+                  <small class="cell-sub" *ngIf="!isSms(c)">Recorded by {{ c.createdBy }}</small>
+                </div>
+
+                <form class="verify-box" *ngIf="isUnverified(c)" (ngSubmit)="verify(c)">
+                  <strong>Verify this sender</strong>
+                  <p>This number is not in your residents list. Check who it is before you act, then confirm.</p>
+                  <input name="vName" [(ngModel)]="verifyForm.name" placeholder="Resident's full name" maxlength="80" />
+                  <input name="vPurok" [(ngModel)]="verifyForm.purok" placeholder="Purok / zone (needed to register)" maxlength="40" />
+                  <label class="check">
+                    <input type="checkbox" name="vConsent" [(ngModel)]="verifyForm.consent" />
+                    The resident agreed to receive SMS updates and be saved in the residents list
+                  </label>
+                  <p class="form-msg bad" *ngIf="verifyError()">{{ verifyError() }}</p>
+                  <button type="submit" class="primary-button" [disabled]="verifyBusy()">{{ verifyBusy() ? 'Saving...' : 'Confirm sender' }}</button>
+                </form>
+              </div>
             </td>
           </tr>
         </ng-container>
-        <tr *ngIf="store.filteredConcerns.length === 0">
-          <td colspan="6" class="empty">No concerns found. Use "Report Concern" to record one.</td>
+        <tr *ngIf="shown.length === 0">
+          <td colspan="8" class="empty">No concerns found. Texts from residents appear here automatically.</td>
         </tr>
       </tbody>
     </table>
@@ -58,8 +99,8 @@
   <section class="form-modal">
     <div class="modal-heading">
       <div>
-        <h2>Report a Resident Concern</h2>
-        <p>Record what the resident reported so the office can follow up.</p>
+        <h2>Record a Resident Concern</h2>
+        <p>For a resident who reported in person or by phone call. Texts arrive by themselves.</p>
       </div>
       <button class="close-button" (click)="store.showConcernForm = false">×</button>
     </div>
@@ -68,8 +109,11 @@
       <label>Resident name *
         <input name="cResident" [(ngModel)]="store.concernForm.resident" maxlength="80" required />
       </label>
-      <label>Area / Barangay *
-        <input name="cArea" [(ngModel)]="store.concernForm.area" [disabled]="session.user()?.role === 'barangay_head'" placeholder="e.g. Poblacion" required />
+      <label>Resident mobile number (optional)
+        <input name="cPhone" [(ngModel)]="store.concernForm.phone" inputmode="tel" maxlength="20" placeholder="09171234567" />
+      </label>
+      <label>Barangay
+        <input name="cArea" [ngModel]="session.user()?.barangay" disabled />
       </label>
       <label>Subject *
         <input name="cSubject" [(ngModel)]="store.concernForm.subject" maxlength="120" placeholder="e.g. Missed collection" required />

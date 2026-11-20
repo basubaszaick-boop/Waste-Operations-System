@@ -1,6 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
+import { AppNotification } from '../../core/models';
 import { WasteStore } from '../../core/waste.store';
 
 @Component({
@@ -16,6 +17,11 @@ export class NotificationsComponent {
   readonly labels: Record<string, string> = {
     today: 'Today', upcoming: 'Upcoming', cancelled: 'Cancelled', concern: 'Resident concern'
   };
+
+  openOne(n: AppNotification): void {
+    this.store.markRead(n);
+    this.open(n.link);
+  }
 
   open(link: string): void {
     this.router.navigateByUrl(link);

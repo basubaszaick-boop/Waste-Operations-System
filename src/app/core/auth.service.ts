@@ -43,6 +43,8 @@ export interface AppUser {
   position: string;   // office (admin) or barangay position (head)
   vehicle: string;    // drivers: plate number
   team: string;       // drivers: team assigned by the admin
+  smsNumber: string;  // barangay heads: the number residents text (09XXXXXXXXX)
+  smsDeviceId: string; // barangay heads: id of the Android gateway phone that receives those texts
   photo: string;      // small JPEG data URL
   active: boolean;
   createdAt: string;
@@ -54,7 +56,7 @@ export interface AppUser {
 export type SelfEditable = Partial<Pick<AppUser, 'name' | 'phone' | 'address' | 'bio' | 'position' | 'vehicle' | 'photo' | 'email' | 'prefs'>>;
 
 /** Fields an administrator may change on someone else's account. */
-export type AdminEditable = Partial<Pick<AppUser, 'name' | 'role' | 'barangay' | 'team' | 'active' | 'position' | 'phone'>>;
+export type AdminEditable = Partial<Pick<AppUser, 'name' | 'role' | 'barangay' | 'team' | 'active' | 'position' | 'phone' | 'smsNumber' | 'smsDeviceId'>>;
 
 const ROLES: Role[] = ['admin', 'driver', 'barangay_head'];
 
@@ -96,6 +98,8 @@ function toAppUser(uid: string, d: Record<string, unknown>, email: string, lastS
     position: str(d['position']),
     vehicle: str(d['vehicle']),
     team: str(d['team']),
+    smsNumber: str(d['smsNumber']),
+    smsDeviceId: str(d['smsDeviceId']),
     photo: str(d['photo']),
     active: d['active'] !== false,
     createdAt: toIso(d['createdAt']),
@@ -199,7 +203,7 @@ export class AuthService {
    */
   async createStaff(
     current: AppUser | null,
-    input: { email: string; password: string; name: string; role: Role; barangay: string; team?: string }
+    input: { email: string; password: string; name: string; role: Role; barangay: string; team?: string; phone?: string; smsNumber?: string; smsDeviceId?: string }
   ): Promise<void> {
     if (current?.role !== 'admin') throw new Error('Only the administrator can create accounts.');
     if (!ROLES.includes(input.role)) throw new Error('Invalid role.');
@@ -216,6 +220,9 @@ export class AuthService {
         role: input.role,
         barangay: input.role === 'barangay_head' ? input.barangay.trim() : '',
         team: input.role === 'driver' ? (input.team ?? '').trim() : '',
+        phone: input.phone ?? '',
+        smsNumber: input.role === 'barangay_head' ? (input.smsNumber ?? '') : '',
+        smsDeviceId: input.role === 'barangay_head' ? (input.smsDeviceId ?? '').trim() : '',
         active: true,
         createdAt: serverTimestamp()
       });

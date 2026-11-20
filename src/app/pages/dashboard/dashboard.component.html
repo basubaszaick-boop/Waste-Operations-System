@@ -17,7 +17,7 @@
   </div>
   <div class="hero-actions">
     <button class="hero-button" (click)="store.loadAll()">↻ Refresh</button>
-    <button class="hero-button solid" (click)="go('profile')">My Profile</button>
+    <button class="hero-button solid" (click)="go('profile')">Profile &amp; Settings</button>
   </div>
 </section>
 
@@ -227,7 +227,7 @@
       </button>
       <button class="quick-action" (click)="go('profile')">
         <span class="quick-icon purple">☺</span>
-        <span><strong>My Profile</strong><small>{{ u.vehicle ? 'Vehicle ' + u.vehicle : 'Add your vehicle plate' }}</small></span><b>›</b>
+        <span><strong>Profile &amp; Settings</strong><small>{{ u.vehicle ? 'Vehicle ' + u.vehicle : 'Add your vehicle plate' }}</small></span><b>›</b>
       </button>
     </section>
   </div>
@@ -294,13 +294,13 @@
   <div class="dashboard-grid">
     <section class="panel">
       <div class="panel-heading">
-        <div><h3>Open Concerns</h3><p>Update them as you follow up</p></div>
-        <button class="primary-button" (click)="reportConcern()">＋ Report Concern</button>
+        <div><h3>Open Concerns</h3><p>Texts from residents appear here live</p></div>
+        <button class="secondary-button" (click)="go('concerns')">Open all →</button>
       </div>
       <div class="concern-item" *ngFor="let c of headConcerns">
         <div>
-          <strong>{{ c.subject }}</strong>
-          <small>{{ c.resident }} · {{ c.createdAt | date:'MMM d' }}</small>
+          <strong>{{ c.subject }} <span class="src-badge sms" *ngIf="c.source === 'sms'">SMS</span></strong>
+          <small>{{ c.resident }}{{ c.senderPhone ? ' · ' + c.senderPhone : '' }} · {{ (c.receivedAt || c.createdAt) | date:'MMM d, h:mm a' }}</small>
         </div>
         <span class="status" [ngClass]="c.status === 'In Review' ? 'in-progress' : 'scheduled'">{{ c.status }}</span>
         <button class="edit-button" *ngIf="c.status === 'Pending'" (click)="store.changeConcernStatus(c, 'In Review')">Review</button>
@@ -313,7 +313,7 @@
       <div class="panel-heading"><div><h3>Quick Actions</h3><p>Shortcuts</p></div></div>
       <button class="quick-action" (click)="reportConcern()">
         <span class="quick-icon orange">☏</span>
-        <span><strong>Report a Concern</strong><small>Record a resident's report</small></span><b>›</b>
+        <span><strong>Record a Concern</strong><small>For walk-in or phone reports</small></span><b>›</b>
       </button>
       <button class="quick-action" (click)="go('schedules')">
         <span class="quick-icon green">▤</span>
@@ -325,7 +325,7 @@
       </button>
       <button class="quick-action" (click)="go('profile')">
         <span class="quick-icon purple">☺</span>
-        <span><strong>My Profile</strong><small>Contact details and security</small></span><b>›</b>
+        <span><strong>Profile &amp; Settings</strong><small>Contact details and security</small></span><b>›</b>
       </button>
     </section>
   </div>

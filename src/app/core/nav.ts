@@ -6,6 +6,8 @@ export interface NavItem {
   icon: string;
   subtitle: string;
   roles: Role[];
+  /** Still a valid page (title, route, access) but not listed in the sidebar. */
+  hidden?: boolean;
 }
 
 const ALL: Role[] = ['admin', 'driver', 'barangay_head'];
@@ -22,16 +24,14 @@ export const NAV: NavItem[] = [
     subtitle: 'Monitor collection progress and update operational status.' },
   { label: 'Resident Concerns', path: 'concerns', icon: '☏', roles: ['barangay_head'],
     subtitle: 'Record resident reports and follow them up.' },
-  { label: 'Notifications', path: 'notifications', icon: '♧', roles: ALL,
+  { label: 'Notifications', path: 'notifications', icon: '♧', roles: ALL, hidden: true,
     subtitle: 'Live reminders built from your schedules.' },
   { label: 'Reports', path: 'reports', icon: '▥', roles: ['admin'],
     subtitle: 'Review collection summaries and export data.' },
   { label: 'Activity Log', path: 'activity', icon: '☰', roles: ['admin'],
     subtitle: 'See who did what in the system.' },
-  { label: 'My Profile', path: 'profile', icon: '☺', roles: ALL,
-    subtitle: 'Your account details, security and preferences.' },
-  { label: 'Settings', path: 'settings', icon: '⚙', roles: ['admin'],
-    subtitle: 'System information.' }
+  { label: 'Profile & Settings', path: 'profile', icon: '☺', roles: ALL,
+    subtitle: 'Your personal information, security, notifications and account details in one place.' }
 ];
 
 export const rolesFor = (path: string): Role[] =>
